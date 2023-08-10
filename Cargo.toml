@@ -1,0 +1,12 @@
+[package]
+name = "gui_image"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+druid="0.8.3"
+screenshots = "0.7.1"
+image="0.24.6"
+mouse-rs = "0.4.2"
