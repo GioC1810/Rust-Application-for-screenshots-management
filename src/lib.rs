@@ -1,16 +1,15 @@
-use std::fmt::Error;
+use std::cell::RefCell;
 use std::fs;
-use std::io::Cursor;
-use std::net::Shutdown::Read;
-use druid::widget::{Button, FillStrat, Flex, Image, Label, ZStack};
-use druid::{AppLauncher, Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, LocalizedString, MouseButton, MouseEvent, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WindowDesc, ImageBuf, WindowState, LensExt, Code, KeyEvent, KbKey};
-use druid::keyboard_types::Key;
+use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use druid::widget::{Button, Flex, Image, ZStack};
+use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, LocalizedString, MouseButton, MouseEvent, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WindowDesc, ImageBuf, WindowState, LensExt, Code, KeyEvent, KbKey};
 use druid::WindowState::Maximized;
 use druid::piet::ImageFormat as FormatImage;
-use image::{DynamicImage, ImageBuffer, ImageFormat};
-use image::io::Reader;
+use druid::platform_menus::mac::file::save;
+use image::{DynamicImage, ImageBuffer};
 use screenshots::{Compression, Screen};
-use screenshots::Image as ScreenImage;
+use arboard::{Clipboard,ImageData};
 
 //principal structs
 
@@ -53,7 +52,6 @@ impl Widget<AppState> for MyApp {
                     data.current_rectangle = Some(expandable_rect);
                     ctx.request_paint();
                 }
-
             }
             Event::MouseUp(mouse_event) => {
                 if mouse_event.button == MouseButton::Left {
@@ -92,7 +90,6 @@ impl Widget<AppState> for MyApp {
             let buffer = image.to_png(Compression::Default).unwrap();
             //let compressed_buffer = image.to_png(Compression::Best).unwrap();
 
-            fs::write("test_screen.jpg", buffer.clone()).unwrap();
             let image_buf=ImageBuf::from_raw(image.rgba().clone(),FormatImage::RgbaPremul,image.width() as usize,image.height() as usize);
             data.image=Some(image_buf.clone());
 
@@ -182,9 +179,7 @@ impl Widget<AppState> for Croptest {
             let cropped_dyn_image = dynamic_image.crop_imm(data.initial_point.unwrap().x as u32, data.initial_point.unwrap().y as u32, cropped_width as u32, cropped_height as u32);
             println!("cropped height {}", cropped_dyn_image.height());
             let rgba_data_cropped = cropped_dyn_image.clone().into_rgba8().to_vec();
-
             let cropped_image_buf=Some(ImageBuf::from_raw(rgba_data_cropped.clone(),FormatImage::RgbaPremul,cropped_dyn_image.width() as usize,cropped_dyn_image.height() as usize));
-
             let cropped_image=screenshots::Image::from_bgra(rgba_data_cropped,cropped_dyn_image.width() as u32,cropped_dyn_image.height() as u32, 4*cropped_dyn_image.width() as usize);
             //let image=cropped_image_buf.clone();
             // Get image dimensions
@@ -195,7 +190,7 @@ impl Widget<AppState> for Croptest {
             data.image=cropped_image_buf.clone();
             data.cropped_area = None;
             ctx.window().close();
-            fs::write("test_crop.jpg", cropped_image.to_png(Compression::Default).unwrap()).unwrap();
+            //fs::write("test_crop.jpg", cropped_image.to_png(Compression::Default).unwrap()).unwrap();
             ctx.new_window(WindowDesc::new(build_ui(Image::new(cropped_image_buf.unwrap()), cropped_image,  data)).window_size((cropped_width as f64, cropped_height as f64)));
         }
     }
@@ -283,9 +278,87 @@ fn build_ui(image:Image, img: screenshots::Image,  my_data:&mut AppState) -> imp
 
         });
 
+    let img_data = Rc::new(RefCell::new(img.to_png(Compression::Default).unwrap().clone()));
+
+    fn save_image(img_type: i32, img: Vec<u8>) {
+        let path_name = match img_type {
+            0 => "test_crop_values.png",
+            1 => "test_crop_values.jpg",
+            2 => "test_crop_values.gif",
+            _ => "",
+        };
+        fs::write(path_name, img).unwrap();
+    }
+
+    let save_as_png_data = Rc::clone(&img_data);
+    let save_as_jpg_data = Rc::clone(&img_data);
+    let save_as_gif_data = Rc::clone(&img_data);
+    let copy_to_clipboard_data = Rc::clone(&img_data);
+
+
+    let save_as_png = Button::new("Save as png")
+        .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let img_data = Rc::clone(&save_as_png_data);
+            let img_cloned = img_data.borrow().to_owned();
+            save_image(0, img_cloned);
+            ctx.new_window(WindowDesc::new(ui_builder())
+                .set_window_state(Maximized)
+                .set_position(Point::new(0 as f64, 0 as f64))
+                .show_titlebar(true)
+                .transparent(true)
+            );
+            ctx.window().close();
+        });
+
+    let save_as_jpg = Button::new("Save as jpg")
+        .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let img_data = Rc::clone(&save_as_jpg_data);
+            let img_cloned = img_data.borrow().to_owned();
+            save_image(1, img_cloned);
+            ctx.new_window(WindowDesc::new(ui_builder())
+                .set_window_state(Maximized)
+                .set_position(Point::new(0 as f64, 0 as f64))
+                .show_titlebar(true)
+                .transparent(true)
+            );
+            ctx.window().close();
+        });
+
+    let save_as_gif = Button::new("Save as gif")
+        .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let img_data = Rc::clone(&save_as_gif_data);
+            let img_cloned = img_data.borrow().to_owned();
+            save_image(2, img_cloned);
+            ctx.new_window(WindowDesc::new(ui_builder())
+                .set_window_state(Maximized)
+                .set_position(Point::new(0 as f64, 0 as f64))
+                .show_titlebar(true)
+                .transparent(true)
+            );
+            ctx.window().close();
+        });
+
+    let copy_to_clipboard = Button::new("Copy to clipboard")
+        .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let img_data = Rc::clone(&copy_to_clipboard_data);
+            let img_cloned = img_data.borrow().to_owned();
+            Clipboard::new().unwrap().set_image(ImageData { width: img.width() as usize, height: img.height() as usize, bytes: img.rgba().into() });
+            ctx.new_window(WindowDesc::new(ui_builder())
+                .set_window_state(Maximized)
+                .set_position(Point::new(0 as f64, 0 as f64))
+                .show_titlebar(true)
+                .transparent(true)
+            );
+            ctx.window().close();
+        });
+
     Flex::column()
-        .with_child(ZStack::new(image).with_centered_child((Croptest)))
         .with_child(toggle_crop_button)
+        .with_child(save_as_png)
+        .with_child(save_as_jpg)
+        .with_child(save_as_gif)
+        .with_child(copy_to_clipboard)
+        .with_child(ZStack::new(image).with_centered_child((Croptest)))
         .with_child(KeyDetectionApp)
 
 }
@@ -460,8 +533,18 @@ impl Widget<AppState> for KeyDetectionApp {
                     ctx.window().close();
                 }
             }
-            Event::KeyUp(_) => {
+            Event::KeyUp(key_event) => {
+                println!("Hotkey pressed: {:?}", key_event.key);
                 data.actual_hotkey.keys.clear();
+                if key_event.key == KbKey::Escape{
+                    ctx.new_window(WindowDesc::new(ui_builder())
+                        .set_window_state(Maximized)
+                        .set_position(Point::new(0 as f64, 0 as f64))
+                        .show_titlebar(true)
+                        .transparent(true)
+                    );
+                    ctx.window().close();
+                }
             }
             _ => {}
         }
