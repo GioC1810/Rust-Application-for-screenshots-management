@@ -2,13 +2,11 @@ use std::cell::RefCell;
 use std::fs;
 use std::env;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
 use druid::widget::{Button, Flex, Image, SizedBox, ZStack};
 use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, LocalizedString, MouseButton, MouseEvent, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WindowDesc, ImageBuf, WindowState, LensExt, Code, KeyEvent, KbKey};
 use druid::WindowState::Maximized;
 use druid::piet::ImageFormat as FormatImage;
 use image::{DynamicImage, ImageBuffer, GenericImage, Rgba, RgbaImage};
-use imageproc::drawing::{draw_filled_rect_mut, draw_text_mut, draw_line_segment_mut};
 use screenshots::{Compression, Screen};
 use arboard::{Clipboard,ImageData};
 
