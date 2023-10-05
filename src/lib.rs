@@ -1,13 +1,14 @@
 use std::cell::RefCell;
 use std::fs;
+use std::env;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use druid::widget::{Button, Flex, Image, ZStack};
+use druid::widget::{Button, Flex, Image, SizedBox, ZStack};
 use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, LocalizedString, MouseButton, MouseEvent, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WindowDesc, ImageBuf, WindowState, LensExt, Code, KeyEvent, KbKey};
 use druid::WindowState::Maximized;
 use druid::piet::ImageFormat as FormatImage;
-use druid::platform_menus::mac::file::save;
-use image::{DynamicImage, ImageBuffer};
+use image::{DynamicImage, ImageBuffer, GenericImage, Rgba, RgbaImage};
+use imageproc::drawing::{draw_filled_rect_mut, draw_text_mut, draw_line_segment_mut};
 use screenshots::{Compression, Screen};
 use arboard::{Clipboard,ImageData};
 
@@ -28,7 +29,9 @@ pub struct AppState{
     #[data(same_fn = "hotkeys_equal")]
     pub hotkeys: Vec<HotKey>,
     pub hotkey_to_register: HotKey,
-    pub actual_hotkey: HotKey
+    pub actual_hotkey: HotKey,
+    pub image_width:u32,
+    pub image_height:u32
 }
 
 impl Widget<AppState> for MyApp {
@@ -74,28 +77,27 @@ impl Widget<AppState> for MyApp {
         }
         if data.initial_point.is_some() && data.final_point.is_some(){
 
-            println!("Initial point y{}", data.initial_point.unwrap().y);
-            println!("Final point y {}", data.final_point.unwrap().y);
+
 
             let scale_factor=1.0;
-            println!("Fattore di scala: {}", scale_factor);
-
 
             let screenshot_width=data.final_point.unwrap().x-data.initial_point.unwrap().x ;
-            let screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
-            println!("{}", screenshot_width);
-            println!("{}", screenshot_height);
+            let mut screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
 
-            let image=Screen::from_point(0,0).unwrap().capture_area(data.initial_point.unwrap().x as i32, data.initial_point.unwrap().y as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
-            let buffer = image.to_png(Compression::Default).unwrap();
-            //let compressed_buffer = image.to_png(Compression::Best).unwrap();
+            let mut initial_height = data.initial_point.unwrap().y as i32;
+
+            if env::consts::OS.eq("macos") {
+                initial_height += 55;
+            }
+            let image=Screen::from_point(0,0).unwrap().capture_area(data.initial_point.unwrap().x as i32, initial_height as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
 
             let image_buf=ImageBuf::from_raw(image.rgba().clone(),FormatImage::RgbaPremul,image.width() as usize,image.height() as usize);
             data.image=Some(image_buf.clone());
-
+            data.image_width=image.width();
+            data.image_height=image.height();
             println!("{}",data.cropped_area.is_some());
             ctx.window().close();
-            ctx.new_window(WindowDesc::new(build_ui(Image::new(image_buf), image, data)).window_size((screenshot_width,screenshot_height)));
+            ctx.new_window(WindowDesc::new(build_ui(Image::new(image_buf), image, data)).set_window_state(Maximized));
 
         }
     }
@@ -109,6 +111,9 @@ impl Widget<AppState> for MyApp {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
+
+        let rect=Rect::from_origin_size( Point{x:0.0, y:0.0}, Size{width:data.image_width as f64,height:data.image_height as f64});
+        ctx.stroke(rect, &Color::WHITE,1.0);
 
         for expandable_rect in &data.rectangles {
 
@@ -165,33 +170,42 @@ impl Widget<AppState> for Croptest {
         }
         if data.initial_point.is_some() && data.final_point.is_some() {
 
+
             let cropped_width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
-            let cropped_height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
+            let mut cropped_height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
+            if env::consts::OS.eq("macos") {
+                cropped_height += 100.0;
+            }
             let rgba_data = data.image.as_ref().unwrap().raw_pixels();
-            println!("rgba data  {}", rgba_data.len());
-            println!(" final y - initial y {}", cropped_height);
+
             let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
                 data.image.as_ref().unwrap().width() as u32,
                 data.image.as_ref().unwrap().height() as u32,
                 rgba_data.to_vec(),
             )
                 .expect("Failed to create ImageBuffer"));
-            let cropped_dyn_image = dynamic_image.crop_imm(data.initial_point.unwrap().x as u32, data.initial_point.unwrap().y as u32, cropped_width as u32, cropped_height as u32);
-            println!("cropped height {}", cropped_dyn_image.height());
+
+            let mut initial_height = data.initial_point.unwrap().y as u32;
+
+            if env::consts::OS.eq("macos") {
+                initial_height += 55;
+            }
+            let cropped_dyn_image = dynamic_image.crop_imm(data.initial_point.unwrap().x as u32, initial_height, cropped_width as u32, cropped_height as u32);
             let rgba_data_cropped = cropped_dyn_image.clone().into_rgba8().to_vec();
             let cropped_image_buf=Some(ImageBuf::from_raw(rgba_data_cropped.clone(),FormatImage::RgbaPremul,cropped_dyn_image.width() as usize,cropped_dyn_image.height() as usize));
-            let cropped_image=screenshots::Image::from_bgra(rgba_data_cropped,cropped_dyn_image.width() as u32,cropped_dyn_image.height() as u32, 4*cropped_dyn_image.width() as usize);
-            //let image=cropped_image_buf.clone();
+            let cropped_image=screenshots::Image::new(cropped_dyn_image.width() as u32,cropped_dyn_image.height() as u32,rgba_data_cropped);
+
             // Get image dimensions
             data.cropping_mode = !data.cropping_mode;
             //data.cropping_mode=true;
             data.initial_point = None;
             data.final_point = None;
             data.image=cropped_image_buf.clone();
+            data.image_width=cropped_image.width();
+            data.image_height=cropped_image.height();
             data.cropped_area = None;
             ctx.window().close();
-            //fs::write("test_crop.jpg", cropped_image.to_png(Compression::Default).unwrap()).unwrap();
-            ctx.new_window(WindowDesc::new(build_ui(Image::new(cropped_image_buf.unwrap()), cropped_image,  data)).window_size((cropped_width as f64, cropped_height as f64)));
+            ctx.new_window(WindowDesc::new(build_ui(Image::new(cropped_image_buf.unwrap()), cropped_image,  data)).set_window_state(Maximized));
         }
     }
 
@@ -204,11 +218,8 @@ impl Widget<AppState> for Croptest {
     }
 
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
-        for expandable_rect in &data.rectangles {
-
-            ctx.fill(expandable_rect.rect, &Color::rgba(0.0, 0.0, 0.0, 0.0)); // Transparent background
-            ctx.stroke(expandable_rect.rect, &Color::WHITE, 1.0); // White border
-        }
+        let size= ctx.size();
+        ctx.stroke(size.to_rect(),&Color::YELLOW,1.0);
 
         if let Some(expandable_rect) = &data.current_rectangle {
             ctx.fill(expandable_rect.rect, &Color::rgba(0.0, 0.0, 0.0, 0.0)); // Transparent background
@@ -220,12 +231,17 @@ impl Widget<AppState> for Croptest {
 //ui generation functions
 
 pub fn ui_builder() -> impl Widget<AppState> {
+
     let screen_button = Button::new("Screen")
         .on_click(|ctx, _data, _env| {
+            let mut is_macos = false;
+            if env::consts::OS.eq("macos") {
+                is_macos = true;
+            }
             ctx.new_window(WindowDesc::new(MyApp)
                 .set_window_state(Maximized)
                 .set_position(Point::new(0 as f64, 0 as f64))
-                .show_titlebar(true)
+                .show_titlebar(is_macos)
                 .transparent(true)
             );
             ctx.window().close();
@@ -233,6 +249,10 @@ pub fn ui_builder() -> impl Widget<AppState> {
 
     let memorize_hotkey = Button::new("Add hotkey")
         .on_click(|ctx, _data, _env| {
+            let mut is_macos = false;
+            if env::consts::OS.eq("macos") {
+                is_macos = true;
+            }
             ctx.new_window(WindowDesc::new(HoyKeyRecord)
                 .title("digit hotkey")
                 .set_window_state(Maximized)
@@ -254,8 +274,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
         .with_child(KeyDetectionApp)
 }
 
-fn build_ui(image:Image, img: screenshots::Image,  my_data:&mut AppState) -> impl Widget<AppState> {
-    println!("in build ui");
+fn build_ui(image:Image, mut img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
 
     my_data.mouse_position=Point::new(0.0, 0.0);
     my_data.initial_point=None;
@@ -298,13 +317,17 @@ fn build_ui(image:Image, img: screenshots::Image,  my_data:&mut AppState) -> imp
 
     let save_as_png = Button::new("Save as png")
         .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let mut is_macos = false;
+            if env::consts::OS.eq("macos") {
+                is_macos = true;
+            }
             let img_data = Rc::clone(&save_as_png_data);
             let img_cloned = img_data.borrow().to_owned();
             save_image(0, img_cloned);
             ctx.new_window(WindowDesc::new(ui_builder())
                 .set_window_state(Maximized)
                 .set_position(Point::new(0 as f64, 0 as f64))
-                .show_titlebar(true)
+                .show_titlebar(is_macos)
                 .transparent(true)
             );
             ctx.window().close();
@@ -312,13 +335,17 @@ fn build_ui(image:Image, img: screenshots::Image,  my_data:&mut AppState) -> imp
 
     let save_as_jpg = Button::new("Save as jpg")
         .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let mut is_macos = false;
+            if env::consts::OS.eq("macos") {
+                is_macos = true;
+            }
             let img_data = Rc::clone(&save_as_jpg_data);
             let img_cloned = img_data.borrow().to_owned();
             save_image(1, img_cloned);
             ctx.new_window(WindowDesc::new(ui_builder())
                 .set_window_state(Maximized)
                 .set_position(Point::new(0 as f64, 0 as f64))
-                .show_titlebar(true)
+                .show_titlebar(is_macos)
                 .transparent(true)
             );
             ctx.window().close();
@@ -326,13 +353,17 @@ fn build_ui(image:Image, img: screenshots::Image,  my_data:&mut AppState) -> imp
 
     let save_as_gif = Button::new("Save as gif")
         .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            let mut is_macos = false;
+            if env::consts::OS.eq("macos") {
+                is_macos = true;
+            }
             let img_data = Rc::clone(&save_as_gif_data);
             let img_cloned = img_data.borrow().to_owned();
             save_image(2, img_cloned);
             ctx.new_window(WindowDesc::new(ui_builder())
                 .set_window_state(Maximized)
                 .set_position(Point::new(0 as f64, 0 as f64))
-                .show_titlebar(true)
+                .show_titlebar(is_macos)
                 .transparent(true)
             );
             ctx.window().close();
@@ -358,7 +389,10 @@ fn build_ui(image:Image, img: screenshots::Image,  my_data:&mut AppState) -> imp
         .with_child(save_as_jpg)
         .with_child(save_as_gif)
         .with_child(copy_to_clipboard)
-        .with_child(ZStack::new(image).with_centered_child((Croptest)))
+        .with_child(SizedBox::new(ZStack::new(image)
+            .with_centered_child(Croptest))
+            .width(my_data.image_width as f64)
+            .height(my_data.image_height as f64))
         .with_child(KeyDetectionApp)
 
 }

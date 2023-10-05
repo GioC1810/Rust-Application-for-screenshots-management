@@ -24,7 +24,9 @@ fn main() {
             image: None,
             hotkeys: Vec::new(),
             hotkey_to_register: HotKey::new(),
-            actual_hotkey: HotKey::new()
+            actual_hotkey: HotKey::new(),
+            image_width:0,
+            image_height:0
         })
         .expect("Failed to launch app");
 
