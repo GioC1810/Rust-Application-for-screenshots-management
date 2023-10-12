@@ -1,6 +1,6 @@
-use druid::{AppLauncher, Point, WindowDesc, KeyEvent};
+use druid::{AppLauncher, Point, WindowDesc, KeyEvent, Selector, ExtEventSink, Target};
 use druid::WindowState::Maximized;
-use gui_image::{AppState, HotKey, KeyDetectionApp, ui_builder};
+use gui_image::{AppState, HotKey, ui_builder};
 
 
 

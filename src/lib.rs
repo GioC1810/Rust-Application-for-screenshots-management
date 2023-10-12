@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::fs;
 use std::env;
 use std::rc::Rc;
-use druid::widget::{Button, Flex, Image, SizedBox, ZStack};
-use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WindowDesc, ImageBuf, LensExt, KbKey};
+use druid::widget::{Button, Flex, Image, Label, SizedBox, ZStack};
+use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WidgetExt, WindowDesc, ImageBuf, LensExt, KbKey, FileDialogOptions, FileSpec};
 use druid::WindowState::Maximized;
-use druid::piet::ImageFormat as FormatImage;
+use druid::piet::{ImageFormat as FormatImage, Text, TextLayoutBuilder};
 use image::{DynamicImage, ImageBuffer};
 use screenshots::{Compression, Screen};
 use arboard::{Clipboard,ImageData};
@@ -75,9 +75,6 @@ impl Widget<AppState> for MyApp {
         }
         if data.initial_point.is_some() && data.final_point.is_some(){
 
-
-
-            let scale_factor=1.0;
 
             let screenshot_width=data.final_point.unwrap().x-data.initial_point.unwrap().x ;
             let mut screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
@@ -246,12 +243,12 @@ pub fn ui_builder() -> impl Widget<AppState> {
         });
 
     let memorize_hotkey = Button::new("Add hotkey")
-        .on_click(|ctx, _data, _env| {
+        .on_click(|ctx, data, _env| {
             let mut is_macos = false;
             if env::consts::OS.eq("macos") {
                 is_macos = true;
             }
-            ctx.new_window(WindowDesc::new(HoyKeyRecord)
+            ctx.new_window(WindowDesc::new(build_hotkey_ui(data))
                 .title("digit hotkey")
                 .set_window_state(Maximized)
                 .set_position(Point::new(0 as f64, 0 as f64))
@@ -272,6 +269,39 @@ pub fn ui_builder() -> impl Widget<AppState> {
         .with_child(KeyDetectionApp)
 }
 
+fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
+    // Create a widget that displays the hotkey items
+    // You can use a Flex to lay out the hotkey items vertically
+    let mut hotkey_list = Flex::column();
+
+    // Add a button next to each hotkey item
+    for (index, hotkey) in data.hotkeys.iter().enumerate() {
+        let delete_button = Button::new(format!("Delete Hotkey {}", index + 1))
+            .on_click(move |ctx, data: &mut AppState, _env| {
+                // Handle the click event to delete the corresponding item
+                data.hotkeys.remove(index);
+                ctx.new_window(WindowDesc::new(build_hotkey_ui(data))
+                    .title("digit hotkey")
+                    .set_window_state(Maximized)
+                    .set_position(Point::new(0 as f64, 0 as f64))
+                    .show_titlebar(true)
+                    .transparent(false)
+                );
+                ctx.window().close();
+            });
+
+        hotkey_list = hotkey_list.with_child(
+            Flex::row()
+                .with_child(Label::new(format!("Hotkey {}: {:?}", index + 1, hotkey.keys)))
+                .with_spacer(8.0) // Add some spacing between the label and button
+                .with_child(delete_button),
+        );
+    }
+
+    Flex::column()
+        .with_child(hotkey_list)
+        .with_child(HotKeyRecord)
+}
 fn build_ui(image:Image, mut img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
 
     my_data.mouse_position=Point::new(0.0, 0.0);
@@ -304,7 +334,6 @@ fn build_ui(image:Image, mut img: screenshots::Image, my_data:&mut AppState) -> 
             2 => "test_crop_values.gif",
             _ => "",
         };
-        fs::write(path_name, img).unwrap();
     }
 
     let save_as_png_data = Rc::clone(&img_data);
@@ -321,6 +350,7 @@ fn build_ui(image:Image, mut img: screenshots::Image, my_data:&mut AppState) -> 
             }
             let img_data = Rc::clone(&save_as_png_data);
             let img_cloned = img_data.borrow().to_owned();
+
             save_image(0, img_cloned);
             ctx.new_window(WindowDesc::new(ui_builder())
                 .set_window_state(Maximized)
@@ -472,16 +502,24 @@ fn find_hotkey_match(r1: &HotKey, r2: &Vec<HotKey>) -> bool{
     ).count() > 0
 }
 
-pub struct HoyKeyRecord;
-impl Widget<AppState> for HoyKeyRecord {
+pub struct HotKeyRecord;
+impl Widget<AppState> for HotKeyRecord {
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
         ctx.set_focus(ctx.widget_id());
         match event {
             Event::KeyDown(key_event) => {
+                if key_event.key == KbKey::Escape{
+                    ctx.new_window(WindowDesc::new(ui_builder())
+                        .set_window_state(Maximized)
+                        .set_position(Point::new(0 as f64, 0 as f64))
+                        .show_titlebar(true)
+                        .transparent(true)
+                    );
+                    ctx.window().close();
+                }
                 if data.hotkey_to_register.keys.len() < 4 && (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
                     data.hotkey_to_register.keys.push(key_event.key.clone());
-                    println!("insert new hotkey: {:?}", data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len() - 1));
                 }
             }
             Event::KeyUp(_) => {
@@ -489,9 +527,7 @@ impl Widget<AppState> for HoyKeyRecord {
                 for hotkey in &data.hotkeys{
                     print_hotkeys(&hotkey.keys);
                 }
-                println!("hoykeys registered after escape: ");
                 data.hotkey_to_register.keys.clear();
-                println!("hoykeys memorized: ");
                 ctx.new_window(WindowDesc::new(ui_builder())
                     .set_window_state(Maximized)
                     .set_position(Point::new(0 as f64, 0 as f64))
@@ -512,8 +548,7 @@ impl Widget<AppState> for HoyKeyRecord {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
-    }
+    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, env: &Env) {}
 }
 
 //utility functions
@@ -593,6 +628,7 @@ impl Widget<AppState> for KeyDetectionApp {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
     }
 }
+
 
 
 
