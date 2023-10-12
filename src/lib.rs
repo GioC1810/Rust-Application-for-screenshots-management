@@ -509,6 +509,11 @@ impl Widget<AppState> for HotKeyRecord {
         ctx.set_focus(ctx.widget_id());
         match event {
             Event::KeyDown(key_event) => {
+                if data.hotkey_to_register.keys.len() < 4 && key_event.key != KbKey::Escape &&  (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
+                    data.hotkey_to_register.keys.push(key_event.key.clone());
+                }
+            }
+            Event::KeyUp(key_event) => {
                 if key_event.key == KbKey::Escape{
                     ctx.new_window(WindowDesc::new(ui_builder())
                         .set_window_state(Maximized)
@@ -518,11 +523,6 @@ impl Widget<AppState> for HotKeyRecord {
                     );
                     ctx.window().close();
                 }
-                if data.hotkey_to_register.keys.len() < 4 && (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
-                    data.hotkey_to_register.keys.push(key_event.key.clone());
-                }
-            }
-            Event::KeyUp(_) => {
                 data.hotkeys.push(data.hotkey_to_register.clone());
                 for hotkey in &data.hotkeys{
                     print_hotkeys(&hotkey.keys);
