@@ -31,8 +31,7 @@ fn main() {
                     hotkey_to_register: HotKey::new(),
                     actual_hotkey: HotKey::new(),
                     image_width:0,
-                    image_height:0,
-                    screen_button_clicked: false
+                    image_height:0
             })
             .expect("Failed to launch app");
 

@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fs;
 use std::env;
@@ -11,7 +10,7 @@ use image::{DynamicImage, ImageBuffer, Rgba};
 use screenshots::{Compression, Screen};
 use arboard::{Clipboard,ImageData};
 use druid::kurbo::BezPath;
-use imageproc::drawing::{draw_line_segment,draw_polygon,draw_hollow_rect, draw_hollow_circle};
+use imageproc::drawing::{draw_line_segment,draw_hollow_rect, draw_hollow_circle};
 use imageproc::rect::Rect as OtherRect;
 //principal structs
 
@@ -39,8 +38,7 @@ pub struct AppState{
     pub hotkey_to_register: HotKey,
     pub actual_hotkey: HotKey,
     pub image_width:u32,
-    pub image_height:u32,
-    pub screen_button_clicked: bool
+    pub image_height:u32
 }
 
 impl Widget<AppState> for MyApp {
@@ -68,8 +66,6 @@ impl Widget<AppState> for MyApp {
             Event::MouseUp(mouse_event) => {
                 if mouse_event.button == MouseButton::Left {
                     data.final_point=Some(data.mouse_position);
-                    //ctx.request_paint(); // Request a redraw
-                    println!("after click {}", mouse_event.pos.x);
                     if let Some(rect) = data.current_rectangle.take() {
                         data.rectangles.push(rect);
                         ctx.request_paint();
@@ -152,7 +148,6 @@ impl Widget<AppState> for Croptest {
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
-                println!("draw circle mode {}",data.draw_circle_mode);
                 // Check if cropping mode is active and update cropping area
                 if (data.cropping_mode || data.draw_rect_mode || data.draw_circle_mode
                     || data.draw_arrow_mode || data.draw_lines_mode) && mouse_event.button == MouseButton::Left {
@@ -248,8 +243,8 @@ impl Widget<AppState> for Croptest {
                 data.draw_rect_mode=false;
                 data.initial_point = None;
                 data.final_point = None;
-                //ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                //ctx.window().close();
+                ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
+                ctx.window().close();
             }
             if data.draw_circle_mode==true{
                 let width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
@@ -273,8 +268,8 @@ impl Widget<AppState> for Croptest {
                 data.draw_circle_mode=false;
                 data.initial_point = None;
                 data.final_point = None;
-                //ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                //ctx.window().close();
+                ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
+                ctx.window().close();
             }
             if data.draw_arrow_mode==true{
 
@@ -304,8 +299,8 @@ impl Widget<AppState> for Croptest {
                 data.draw_arrow_mode=false;
                 data.initial_point = None;
                 data.final_point = None;
-                //ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                //ctx.window().close();
+                ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
+                ctx.window().close();
             }
             if data.draw_lines_mode==true{
                 let rgba_data = data.image.as_ref().unwrap().raw_pixels();
@@ -339,8 +334,8 @@ impl Widget<AppState> for Croptest {
                 data.draw_lines_mode=false;
                 data.initial_point = None;
                 data.final_point = None;
-                //ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                //ctx.window().close();
+                ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
+                ctx.window().close();
             }
         }
     }
@@ -549,7 +544,6 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
     let copy_to_clipboard = Button::new("Copy to clipboard")
         .on_click(move |ctx, data: &mut AppState, _: &Env| {
             let img_data = Rc::clone(&copy_to_clipboard_data);
-            let img_cloned = img_data.borrow().to_owned();
             Clipboard::new().unwrap().set_image(ImageData { width: img.width() as usize, height: img.height() as usize, bytes: img.rgba().into() }).expect("Error in copying");
             ctx.new_window(WindowDesc::new(ui_builder())
                 .set_window_state(Maximized)
