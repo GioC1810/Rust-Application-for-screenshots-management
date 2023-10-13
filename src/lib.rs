@@ -1,9 +1,11 @@
 use std::cell::RefCell;
 use std::fs;
 use std::env;
+use std::f64::consts::PI;
 use std::rc::Rc;
-use druid::widget::{Button, Flex, Image, Label, SizedBox, ZStack};
-use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey};
+use druid::widget::{Align, Button, Flex, Image, Label, Painter, SizedBox, ZStack};
+use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
+            LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt};
 use druid::WindowState::Maximized;
 use druid::piet::ImageFormat as FormatImage;
 use image::{DynamicImage, ImageBuffer, Rgba};
@@ -12,6 +14,7 @@ use arboard::{Clipboard,ImageData};
 use druid::kurbo::BezPath;
 use imageproc::drawing::{draw_line_segment,draw_hollow_rect, draw_hollow_circle};
 use imageproc::rect::Rect as OtherRect;
+
 //principal structs
 
 pub struct MyApp;
@@ -29,6 +32,7 @@ pub struct AppState{
     pub draw_arrow_mode:bool,
     pub draw_lines_mode: bool,
     pub is_drawing:bool,
+    pub selected_color: Color,
     #[data(same_fn = "point_equal")]
     pub all_positions:Vec<Point>,
     pub draw_path: BezPath,
@@ -222,6 +226,7 @@ impl Widget<AppState> for Croptest {
                 ctx.new_window(WindowDesc::new(build_ui(Image::new(cropped_image_buf.unwrap()), cropped_image, data)).set_window_state(Maximized));
                 ctx.window().close();
             }
+            let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
             if data.draw_rect_mode==true{
                 let rect_width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
                 let mut rect_height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
@@ -235,7 +240,7 @@ impl Widget<AppState> for Croptest {
                     data.image.as_ref().unwrap().height() as u32,
                     rgba_data.to_vec(),
                 ).expect("Failed to create ImageBuffer"));
-                let new_image= Some(draw_hollow_rect(&dynamic_image,OtherRect::at(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32).of_size(rect_width as u32,rect_height as u32),Rgba([255u8,0u8,0u8,0u8])));
+                let new_image= Some(draw_hollow_rect(&dynamic_image,OtherRect::at(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32).of_size(rect_width as u32,rect_height as u32),rgba));
                 let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
                 let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
                 data.image=drawn_image_buf.clone();
@@ -260,7 +265,7 @@ impl Widget<AppState> for Croptest {
                     data.image.as_ref().unwrap().height() as u32,
                     rgba_data.to_vec(),
                 ).expect("Failed to create ImageBuffer"));
-                let new_image= Some(draw_hollow_circle(&dynamic_image,(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32),radius as i32, Rgba([255u8,0u8,0u8,0u8])));
+                let new_image= Some(draw_hollow_circle(&dynamic_image,(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32),radius as i32, rgba));
                 let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
                 let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
                 data.image=drawn_image_buf.clone();
@@ -273,13 +278,19 @@ impl Widget<AppState> for Croptest {
             }
             if data.draw_arrow_mode==true{
 
-                //let line = druid::kurbo::Line::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), (data.mouse_position.x, data.mouse_position.y));
-                let angle = std::f64::consts::FRAC_PI_4; // Angolo di 45 gradi in radianti
-                let length = 1.0;
+                let angle = ((data.final_point.unwrap().y - data.initial_point.unwrap().y) as f64).atan2((data.final_point.unwrap().x - data.initial_point.unwrap().x) as f64);
 
-                let dx = length * angle.cos()*2.0;
-                let dy = length * angle.sin();
-                let line_center = Point::new((data.initial_point.unwrap().x-data.mouse_position.x)/2.0,(data.initial_point.unwrap().x-data.mouse_position.x)/2.0);
+                // Arrowhead properties
+                let arrow_length = 20.0; // Adjust as needed
+                let arrow_width = 10.0;  // Adjust as needed
+
+                // Calculate the arrowhead points
+                let arrow_x1 = data.final_point.unwrap().x as f64 - arrow_length * angle.cos();
+                let arrow_y1 = data.final_point.unwrap().y as f64 - arrow_length * angle.sin();
+                let arrow_x2 = arrow_x1 + arrow_width * (angle + PI / 6.0).cos();
+                let arrow_y2 = arrow_y1 + arrow_width * (angle + PI / 6.0).sin();
+                let arrow_x3 = arrow_x1 + arrow_width * (angle - PI / 6.0).cos();
+                let arrow_y3 = arrow_y1 + arrow_width * (angle - PI / 6.0).sin();
 
                 let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
@@ -288,9 +299,10 @@ impl Widget<AppState> for Croptest {
                     data.image.as_ref().unwrap().height() as u32,
                     rgba_data.to_vec(),
                 ).expect("Failed to create ImageBuffer"));
-                let mut new_image= Some(draw_line_segment(&dynamic_image,(data.initial_point.unwrap().x as f32,data.initial_point.unwrap().y as f32),(data.final_point.unwrap().x as f32,data.final_point.unwrap().y as f32), Rgba([255u8,0u8,0u8,0u8])));
-                //new_image= Some(draw_line_segment(&(new_image.unwrap()),((line_center.x - dx)as f32, (line_center.y - dy)as f32), (data.final_point.unwrap().x as f32, data.final_point.unwrap().y as f32), Rgba([0u8,255u8,0u8,0u8])));
-                //new_image= Some(draw_line_segment(&new_image,(data.initial_point.unwrap().x as f32,data.initial_point.unwrap().y as f32),(data.final_point.unwrap().x as f32,data.final_point.unwrap().y as f32), Rgba([255u8,0u8,0u8,0u8])));
+                let mut new_image= Some(draw_line_segment(&dynamic_image,(data.initial_point.unwrap().x as f32,data.initial_point.unwrap().y as f32),(data.final_point.unwrap().x as f32,data.final_point.unwrap().y as f32), rgba));
+                // Draw the arrowhead
+                new_image=Some(draw_line_segment(&new_image.unwrap(),(data.final_point.unwrap().x as f32, data.final_point.unwrap().y as f32), (arrow_x2 as f32, arrow_y2 as f32), rgba));
+                new_image=Some(draw_line_segment(&new_image.unwrap(), (data.final_point.unwrap().x as f32, data.final_point.unwrap().y as f32), (arrow_x3 as f32, arrow_y3 as f32), rgba));
 
                 let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
                 let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
@@ -316,13 +328,13 @@ impl Widget<AppState> for Croptest {
                     if i==0{
                         new_image=Some(draw_line_segment(&dynamic_image,(data.all_positions[i].x as f32,data.all_positions[i].y as f32),
                                                          (data.all_positions[i+1].x as f32,data.all_positions[i+1].y as f32),
-                                                         Rgba([255u8,0u8,0u8,0u8])));
+                                                         rgba));
                     }
                     else if i<(data.all_positions.len()-1){
 
                         new_image=Some(draw_line_segment(&new_image.unwrap(),(data.all_positions[i].x as f32,data.all_positions[i].y as f32),
                                                          (data.all_positions[i+1].x as f32,data.all_positions[i+1].y as f32),
-                                                         Rgba([255u8,0u8,0u8,0u8])));
+                                                         rgba));
                     }
                 }
                 let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
@@ -355,7 +367,7 @@ impl Widget<AppState> for Croptest {
 
         if let Some(expandable_rect) = &data.current_rectangle {
             ctx.fill(expandable_rect.rect, &Color::rgba(0.0, 0.0, 0.0, 0.0)); // Transparent background
-            ctx.stroke(expandable_rect.rect, &Color::YELLOW, 0.5); // Yellow border
+            ctx.stroke(expandable_rect.rect, &data.selected_color, 0.5); // Yellow border
         }
 
         if data.draw_circle_mode==true{
@@ -369,36 +381,42 @@ impl Widget<AppState> for Croptest {
 
 
                 ctx.fill(druid::kurbo::Circle::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), radius), &Color::rgba(0.0, 0.0, 0.0, 0.0));
-                ctx.stroke(druid::kurbo::Circle::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), radius), &Color::YELLOW, 0.5); // Yellow border
+                ctx.stroke(druid::kurbo::Circle::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), radius), &data.selected_color, 0.5); // Yellow border
             }
         }
 
         if data.draw_arrow_mode==true{
             if data.initial_point.is_some() {
-                /*let start = Point::new(data.initial_point.unwrap().x, data.initial_point.unwrap().y);
-                let end = Point::new(data.mouse_position.x, data.mouse_position.y);
-                let line = druid::kurbo::Line::new(start, end);
 
-                // Create a path for the arrowhead
-                let mut arrow_path = druid::kurbo::BezPath::new();
-                arrow_path.move_to(end);
-                arrow_path.line_to(Point::new(end.x - 20.0, end.y - 10.0));
-                arrow_path.line_to(Point::new(end.x - 20.0, end.y + 10.0));
-                arrow_path.close_path();
+                let angle = ((data.mouse_position.y - data.initial_point.unwrap().y) as f64).atan2(
+                    (data.mouse_position.x - data.initial_point.unwrap().x) as f64);
 
-                // Draw the arrow
-                ctx.stroke(line, &Color::BLACK, 2.0);
-                ctx.fill(arrow_path, &Color::BLACK);*/
+                // Arrowhead properties
+                let arrow_length = 20.0; // Adjust as needed
+                let arrow_width = 10.0;  // Adjust as needed
 
+                // Calculate the arrowhead points
+                let arrow_x1 = data.mouse_position.x as f64 - arrow_length * angle.cos();
+                let arrow_y1 = data.mouse_position.y as f64 - arrow_length * angle.sin();
+                let arrow_x2 = arrow_x1 + arrow_width * (angle + PI / 6.0).cos();
+                let arrow_y2 = arrow_y1 + arrow_width * (angle + PI / 6.0).sin();
+                let arrow_x3 = arrow_x1 + arrow_width * (angle - PI / 6.0).cos();
+                let arrow_y3 = arrow_y1 + arrow_width * (angle - PI / 6.0).sin();
+
+                ctx.fill(druid::kurbo::Line::new((data.mouse_position.x , data.mouse_position.y ), (arrow_x2 , arrow_y2)), &Color::rgba(0.0, 0.0, 0.0, 0.0));
+                ctx.fill(druid::kurbo::Line::new((data.mouse_position.x , data.mouse_position.y ), (arrow_x3 , arrow_y3)), &Color::rgba(0.0, 0.0, 0.0, 0.0)); // Yellow border
+
+                ctx.stroke(druid::kurbo::Line::new((data.mouse_position.x , data.mouse_position.y ), (arrow_x2 , arrow_y2)), &data.selected_color, 0.5);
+                ctx.stroke(druid::kurbo::Line::new((data.mouse_position.x , data.mouse_position.y ), (arrow_x3 , arrow_y3)), &data.selected_color, 0.5); // Yellow border
 
                 ctx.fill(druid::kurbo::Line::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), (data.mouse_position.x, data.mouse_position.y)), &Color::rgba(0.0, 0.0, 0.0, 0.0));
-                ctx.stroke(druid::kurbo::Line::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), (data.mouse_position.x, data.mouse_position.y)), &Color::YELLOW, 0.5); // Yellow border
+                ctx.stroke(druid::kurbo::Line::new((data.initial_point.unwrap().x, data.initial_point.unwrap().y), (data.mouse_position.x, data.mouse_position.y)), &data.selected_color, 0.5); // Yellow border
             }
 
         }
         if data.draw_lines_mode==true{
             println!("nel paint delle linee");
-            ctx.stroke(&data.draw_path, &Color::YELLOW, 2.0);
+            ctx.stroke(&data.draw_path, &data.selected_color, 2.0);
         }
     }
 }
@@ -418,13 +436,16 @@ pub fn ui_builder() -> impl Widget<AppState> {
             data.cropping_mode = false;
             data.initial_point = None;
             data.final_point = None;
-                ctx.new_window(WindowDesc::new(MyApp)
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(is_macos)
-                    .transparent(true)
-                );
-                ctx.window().close();
+            data.image_height=0;
+            data.image_width=0;
+
+            ctx.new_window(WindowDesc::new(MyApp)
+                .set_window_state(Maximized)
+                .set_position(Point::new(0 as f64, 0 as f64))
+                .show_titlebar(is_macos)
+                .transparent(true)
+            );
+            ctx.window().close();
 
         });
 
@@ -456,6 +477,15 @@ pub fn ui_builder() -> impl Widget<AppState> {
 }
 
 fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
+
+    //let selected_color_label  = Label::new("Selected Color:");
+
+    let color_circle = Painter::new(|ctx, data: &AppState, _env| {
+        let circle_rect = Size{width:20.0, height:20.0}.to_rect();
+        ctx.fill(circle_rect, &data.selected_color);
+    }).fix_size(20.0, 20.0)
+        .border(Color::BLACK, 2.0);
+    ;
 
     let toggle_crop_button = Button::new("Toggle Crop")
         .on_click(|ctx, data:&mut AppState, _: &Env| {
@@ -587,6 +617,12 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
         data.draw_lines_mode= !data.draw_lines_mode;
     });
 
+    let change_color= Button::new("Change Color").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        ctx.new_window(WindowDesc::new(ColorGrid));
+        ctx.window().close();
+    });
+
+
     Flex::column()
         .with_child(toggle_crop_button)
         .with_child(Flex::row().with_child(save_as_png)
@@ -596,7 +632,10 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
         .with_child(copy_to_clipboard)
         .with_child(Flex::row().with_child(draw_rectangle).with_child(draw_circle)
             .with_child(draw_arrow)
-            .with_child(draw_lines))
+            .with_child(draw_lines)
+            .with_child(color_circle)
+            .with_child(change_color)
+        )
         .with_child(SizedBox::new(ZStack::new(Image::new(my_data.image.clone().unwrap()))
             .with_centered_child(Croptest))
             .width(my_data.image_width as f64)
@@ -754,14 +793,6 @@ impl Widget<AppState> for HotKeyRecord {
     fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
     }
 }
-
-//utility functions
-fn convert_coordinates(coord: (f64, f64), source_scale: f64, target_scale: f64) -> (f64, f64) {
-    let (x, y) = coord;
-    let converted_x = x * (target_scale / source_scale);
-    let converted_y = y * (target_scale / source_scale);
-    (converted_x, converted_y)
-}
 fn print_hotkeys(r: &Vec<KbKey>) {
     println!("hotkeys printed______");
     for (i,  key) in r.iter().enumerate() {
@@ -780,8 +811,14 @@ impl Widget<AppState> for KeyDetectionApp {
                     data.actual_hotkey.keys.push(key_event.key.clone());
                     if find_hotkey_match(&data.actual_hotkey, &data.hotkeys) {
                         println!("combination triggered!!");
+                        data.current_rectangle = None;
+                        data.rectangles.clear();
+                        data.cropping_mode = false;
                         data.initial_point = None;
                         data.final_point = None;
+                        data.image_height=0;
+                        data.image_width=0;
+
                         ctx.new_window(WindowDesc::new(MyApp)
                             .set_window_state(Maximized)
                             .set_position(Point::new(0 as f64, 0 as f64))
@@ -867,4 +904,76 @@ fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
 }
 
 
+
+struct ColorGrid;
+
+impl Widget<AppState> for ColorGrid {
+    fn event(&mut self, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut AppState, _env: &druid::Env) {
+        if let druid::Event::MouseDown(mouse_event) = event {
+            let cell_size = ctx.size().width / 12.0;
+            let click_pos = mouse_event.pos;
+            let p = click_pos;
+            let cell_index = (p.x / cell_size).floor() as usize;
+            if cell_index < 12 {
+                let colors: [Color; 12] = [
+                    Color::RED,
+                    Color::GREEN,
+                    Color::BLUE,
+                    Color::YELLOW,
+                    Color::PURPLE,
+                    Color::GRAY,
+                    Color::WHITE,
+                    Color::BLACK,
+                    Color::LIME,
+                    Color::OLIVE,
+                    Color::TEAL,
+                    Color::NAVY
+                ];
+                data.selected_color = colors[cell_index];
+                println!("{:?}", data.selected_color);
+                ctx.request_paint(); // Trigger a repaint to show the selected color.
+                let rgba_data = data.image.as_ref().unwrap().raw_pixels().to_vec();
+                let image=screenshots::Image::new(data.image_width as u32,data.image_height as u32,rgba_data);
+
+
+                ctx.new_window(WindowDesc::new(build_ui(Image::new(data.image.clone().unwrap()), image,  data)).set_window_state(Maximized));
+                ctx.window().close();
+            }
+        }
+    }
+    fn paint(&mut self, paint_ctx: &mut druid::PaintCtx, _data: &AppState, _env: &druid::Env) {
+        let cell_size = paint_ctx.size().width / 12.0;
+        let colors: [Color; 12] = [
+            Color::RED,
+            Color::GREEN,
+            Color::BLUE,
+            Color::YELLOW,
+            Color::PURPLE,
+            Color::GRAY,
+            Color::WHITE,
+            Color::BLACK,
+            Color::LIME,
+            Color::OLIVE,
+            Color::TEAL,
+            Color::NAVY
+        ];
+
+        for (i, color) in colors.iter().enumerate() {
+            let rect = druid::Rect::from_origin_size(
+                (i as f64 * cell_size, 0.0),
+                (cell_size, paint_ctx.size().height),
+            );
+            paint_ctx.fill(rect, color);
+        }
+    }
+
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) { }
+
+    fn update(&mut self, _ctx: &mut UpdateCtx, old_data: &AppState, _data: &AppState, _env: &Env) {   }
+
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &AppState, _env: &Env) -> Size {
+        bc.max()
+    }
+
+}
 

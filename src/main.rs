@@ -1,4 +1,4 @@
-use druid::{AppLauncher, Point, WindowDesc, KeyEvent};
+use druid::{AppLauncher, Point, WindowDesc, KeyEvent, Color};
 use druid::kurbo::BezPath;
 use druid::WindowState::Maximized;
 use gui_image::{AppState, HotKey, KeyDetectionApp, ui_builder};
@@ -24,6 +24,7 @@ fn main() {
                     draw_arrow_mode: false,
                     draw_lines_mode:false,
                     is_drawing:false,
+                    selected_color:Color::FUCHSIA,
                     all_positions:Vec::new(),
                     draw_path:BezPath::new(),
                     image: None,
