@@ -1,24 +1,27 @@
 use std::cell::RefCell;
-use std::fs;
-use std::env;
+use std::{fs,env};
 use std::f64::consts::PI;
 use std::rc::Rc;
-use druid::widget::{Align, Button, Flex, Image, Label, Painter, SizedBox, ZStack};
+use druid::widget::{Align, Button, Flex, Image, Label, Painter, SizedBox, TextBox, ZStack};
 use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-            LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt};
+            LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size,
+            UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt, Lens};
 use druid::WindowState::Maximized;
 use druid::piet::ImageFormat as FormatImage;
-use image::{DynamicImage, ImageBuffer, Rgba};
+use image::{DynamicImage, GenericImage, ImageBuffer, Rgba};
 use screenshots::{Compression, Screen};
 use arboard::{Clipboard,ImageData};
 use druid::kurbo::BezPath;
-use imageproc::drawing::{draw_line_segment,draw_hollow_rect, draw_hollow_circle};
+use image::ColorType::Rgba8;
+use imageproc::drawing::{draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_polygon, draw_filled_circle, draw_filled_rect, draw_filled_rect_mut, draw_text};
 use imageproc::rect::Rect as OtherRect;
+use rusttype::{Font,Scale};
+
 
 //principal structs
 
 pub struct MyApp;
-#[derive(Clone, Data)]
+#[derive(Clone, Data, Lens)]
 pub struct AppState{
     pub mouse_position: Point,
     pub initial_point:Option<Point>,
@@ -32,6 +35,9 @@ pub struct AppState{
     pub draw_arrow_mode:bool,
     pub draw_lines_mode: bool,
     pub is_drawing:bool,
+    pub is_highliting:bool,
+    pub is_inserting_text:bool,
+    pub input_text:String,
     pub selected_color: Color,
     #[data(same_fn = "point_equal")]
     pub all_positions:Vec<Point>,
@@ -106,11 +112,11 @@ impl Widget<AppState> for MyApp {
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppState, env: &Env) { }
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) { }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, env: &Env) {   }
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {   }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, env: &Env) -> Size {
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &AppState, _env: &Env) -> Size {
         bc.max()
     }
 
@@ -143,25 +149,27 @@ impl Widget<AppState> for Croptest {
                 if let Some(rect) = &mut data.current_rectangle {
                     rect.update(mouse_event.pos);
                 }
-                if data.draw_lines_mode==true{
-                    if data.is_drawing==true{
-                        data.all_positions.push(mouse_event.pos);
+                if data.draw_lines_mode || data.is_highliting {
+                    data.all_positions.push(mouse_event.pos);
+                    if data.is_drawing {
                         data.draw_path.line_to(data.mouse_position);
                     }
                 }
+
                 ctx.request_paint();
             }
             Event::MouseDown(mouse_event) => {
                 // Check if cropping mode is active and update cropping area
                 if (data.cropping_mode || data.draw_rect_mode || data.draw_circle_mode
-                    || data.draw_arrow_mode || data.draw_lines_mode) && mouse_event.button == MouseButton::Left {
+                    || data.draw_arrow_mode || data.draw_lines_mode || data.is_highliting
+                    || data.is_inserting_text) && mouse_event.button == MouseButton::Left {
 
                     data.initial_point = Some(data.mouse_position);
                     let expandable_rect = ExpandableRect::new(mouse_event.pos);
-                    if data.cropping_mode || data.draw_rect_mode {
+                    if data.cropping_mode || data.draw_rect_mode || data.is_inserting_text {
                         data.current_rectangle = Some(expandable_rect);
                     }
-                    if data.draw_lines_mode==true{
+                    if data.draw_lines_mode {
                         data.is_drawing=true;
                         data.draw_path.move_to(data.initial_point.unwrap());
                     }
@@ -172,7 +180,8 @@ impl Widget<AppState> for Croptest {
                 ctx.set_focus(ctx.widget_id());
                 // Update cropping area and disable cropping mode
                 if (data.cropping_mode || data.draw_rect_mode || data.draw_circle_mode
-                    || data.draw_arrow_mode || data.draw_lines_mode) && mouse_event.button == MouseButton::Left {
+                    || data.draw_arrow_mode || data.draw_lines_mode || data.is_highliting
+                    || data.is_inserting_text) && mouse_event.button == MouseButton::Left {
 
                     data.final_point = Some(data.mouse_position);
 
@@ -180,9 +189,12 @@ impl Widget<AppState> for Croptest {
                         data.rectangles.push(rect);
                         ctx.request_paint();
                     }
-                    if data.draw_lines_mode==true{
-                        data.is_drawing=false;
+                    if data.draw_lines_mode || data.is_highliting{
+
                         data.all_positions.push(data.final_point.unwrap());
+                        if data.draw_lines_mode{
+                            data.is_drawing=false;
+                        }
                     }
                     ctx.request_paint();
                 }
@@ -227,7 +239,7 @@ impl Widget<AppState> for Croptest {
                 ctx.window().close();
             }
             let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
-            if data.draw_rect_mode==true{
+            if data.draw_rect_mode==true {
                 let rect_width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
                 let mut rect_height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
                 if env::consts::OS.eq("macos") {
@@ -235,12 +247,15 @@ impl Widget<AppState> for Croptest {
                 }
                 let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
-                let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
                     data.image.as_ref().unwrap().width() as u32,
                     data.image.as_ref().unwrap().height() as u32,
                     rgba_data.to_vec(),
                 ).expect("Failed to create ImageBuffer"));
-                let new_image= Some(draw_hollow_rect(&dynamic_image,OtherRect::at(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32).of_size(rect_width as u32,rect_height as u32),rgba));
+                let mut new_image=None;
+
+                new_image= Some(draw_hollow_rect(&dynamic_image,OtherRect::at(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32).of_size(rect_width as u32,rect_height as u32),rgba));
+
                 let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
                 let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
                 data.image=drawn_image_buf.clone();
@@ -349,6 +364,14 @@ impl Widget<AppState> for Croptest {
                 ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
                 ctx.window().close();
             }
+            if data.is_inserting_text{
+                ctx.new_window(WindowDesc::new(build_input_box(data))
+                    .set_position(Point::new(0 as f64, 0 as f64))
+
+                );
+                ctx.window().close();
+            }
+
         }
     }
 
@@ -476,7 +499,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
         .with_child(KeyDetectionApp)
 }
 
-fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
+fn build_ui(_image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
 
     //let selected_color_label  = Label::new("Selected Color:");
 
@@ -485,7 +508,6 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
         ctx.fill(circle_rect, &data.selected_color);
     }).fix_size(20.0, 20.0)
         .border(Color::BLACK, 2.0);
-    ;
 
     let toggle_crop_button = Button::new("Toggle Crop")
         .on_click(|ctx, data:&mut AppState, _: &Env| {
@@ -514,7 +536,7 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
     let save_as_png_data = Rc::clone(&img_data);
     let save_as_jpg_data = Rc::clone(&img_data);
     let save_as_gif_data = Rc::clone(&img_data);
-    let copy_to_clipboard_data = Rc::clone(&img_data);
+    //let copy_to_clipboard_data = Rc::clone(&img_data);
 
 
     let save_as_png = Button::new("Save as png")
@@ -573,7 +595,7 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
 
     let copy_to_clipboard = Button::new("Copy to clipboard")
         .on_click(move |ctx, data: &mut AppState, _: &Env| {
-            let img_data = Rc::clone(&copy_to_clipboard_data);
+            //let img_data = Rc::clone(&copy_to_clipboard_data);
             Clipboard::new().unwrap().set_image(ImageData { width: img.width() as usize, height: img.height() as usize, bytes: img.rgba().into() }).expect("Error in copying");
             ctx.new_window(WindowDesc::new(ui_builder())
                 .set_window_state(Maximized)
@@ -584,6 +606,16 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
             ctx.window().close();
         });
 
+    let insert_input=Button::new("Insert Text")
+        .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            data.mouse_position=Point::new(0.0, 0.0);
+            data.initial_point=None;
+            data.final_point=None;
+            data.current_rectangle= None;
+            data.rectangles= Vec::new();
+            data.is_inserting_text=true;
+
+        });
     let draw_rectangle= Button::new("Draw rectangle").on_click(move |ctx, data: &mut AppState, _: &Env| {
         data.mouse_position=Point::new(0.0, 0.0);
         data.initial_point=None;
@@ -617,6 +649,15 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
         data.draw_lines_mode= !data.draw_lines_mode;
     });
 
+    let highlight= Button::new("Highlight").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        data.mouse_position=Point::new(0.0, 0.0);
+        data.initial_point=None;
+        data.final_point=None;
+        data.current_rectangle= None;
+        data.rectangles= Vec::new();
+        data.is_highliting= !data.is_highliting;
+    });
+
     let change_color= Button::new("Change Color").on_click(move |ctx, data: &mut AppState, _: &Env| {
         ctx.new_window(WindowDesc::new(ColorGrid));
         ctx.window().close();
@@ -633,8 +674,10 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
         .with_child(Flex::row().with_child(draw_rectangle).with_child(draw_circle)
             .with_child(draw_arrow)
             .with_child(draw_lines)
+            .with_child(highlight)
             .with_child(color_circle)
             .with_child(change_color)
+            .with_child(insert_input)
         )
         .with_child(SizedBox::new(ZStack::new(Image::new(my_data.image.clone().unwrap()))
             .with_centered_child(Croptest))
@@ -644,6 +687,64 @@ fn build_ui(image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl
 
 }
 
+fn build_input_box(_my_data:&mut AppState) -> impl Widget<AppState> {
+    let input_label = Label::new("Enter text:");
+
+    let text_box = TextBox::new()
+        .lens(AppState::input_text)
+        .expand_width()
+        .fix_height(30.0);
+
+    let submit_button = Button::new("Submit")
+        .on_click(|ctx, data: &mut AppState, _env| {
+            // Handle the submitted text here
+            let input_text = &data.input_text;
+            println!("Input Text: {}", input_text);
+
+            // You can perform further actions with the input text, e.g., send it to a server, process it, etc.
+            // For now, we'll just print it to the console.
+
+            let rgba_data = data.image.as_ref().unwrap().raw_pixels().to_vec();
+            //let image=screenshots::Image::new(data.image_width as u32,data.image_height as u32,rgba_data);
+
+
+            let rgba_data = data.image.as_ref().unwrap().raw_pixels();
+            let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
+
+            let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                data.image.as_ref().unwrap().width() as u32,
+                data.image.as_ref().unwrap().height() as u32,
+                rgba_data.to_vec(),
+            ).expect("Failed to create ImageBuffer"));
+            let mut new_image=None;
+            let font_data: &[u8] = include_bytes!("../Montserrat-Italic.otf");
+            let font = Font::try_from_bytes(font_data);
+            new_image= Some(draw_text(&dynamic_image, rgba, data.initial_point.unwrap().x as i32, data.initial_point.unwrap().y as i32, Scale::uniform((data.final_point.unwrap().y-data.initial_point.unwrap().y) as f32),
+                                      &font.unwrap(), &*data.input_text));
+
+            let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
+            let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
+            data.image=drawn_image_buf.clone();
+            let image=screenshots::Image::new(dynamic_image.width() as u32,dynamic_image.height() as u32,rgba_data_drawn);
+            data.is_inserting_text=false;
+            data.initial_point = None;
+            data.final_point = None;
+
+
+            ctx.new_window(WindowDesc::new(build_ui(Image::new(data.image.clone().unwrap()), image,  data)).set_window_state(Maximized));
+            ctx.window().close();
+            // Clear the text input field after submission
+            data.input_text.clear();
+            ctx.request_update(); // Request a UI update to clear the text box
+        });
+
+    Flex::column()
+        .with_child(input_label)
+        .with_spacer(10.0)
+        .with_child(text_box)
+        .with_spacer(10.0)
+        .with_child(submit_button)
+}
 
 //Rectangle drawer section
 #[derive(Clone)]
@@ -782,15 +883,15 @@ impl Widget<AppState> for HotKeyRecord {
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppState, env: &Env) { }
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) { }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, env: &Env) {   }
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {   }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, env: &Env) -> Size {
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &AppState, _env: &Env) -> Size {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
+    fn paint(&mut self, _ctx: &mut PaintCtx, _data: &AppState, _env: &Env) {
     }
 }
 fn print_hotkeys(r: &Vec<KbKey>) {
@@ -857,15 +958,15 @@ impl Widget<AppState> for KeyDetectionApp {
         }
     }
 
-    fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppState, env: &Env) { }
+    fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) { }
 
-    fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, env: &Env) {   }
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {   }
 
-    fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, env: &Env) -> Size {
+    fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &AppState, _env: &Env) -> Size {
         bc.max()
     }
 
-    fn paint(&mut self, ctx: &mut PaintCtx, data: &AppState, _env: &Env) {
+    fn paint(&mut self, _ctx: &mut PaintCtx, _data: &AppState, _env: &Env) {
     }
 }
 
@@ -908,8 +1009,8 @@ fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
 struct ColorGrid;
 
 impl Widget<AppState> for ColorGrid {
-    fn event(&mut self, ctx: &mut druid::EventCtx, event: &druid::Event, data: &mut AppState, _env: &druid::Env) {
-        if let druid::Event::MouseDown(mouse_event) = event {
+    fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
+        if let Event::MouseDown(mouse_event) = event {
             let cell_size = ctx.size().width / 12.0;
             let click_pos = mouse_event.pos;
             let p = click_pos;
@@ -941,7 +1042,7 @@ impl Widget<AppState> for ColorGrid {
             }
         }
     }
-    fn paint(&mut self, paint_ctx: &mut druid::PaintCtx, _data: &AppState, _env: &druid::Env) {
+    fn paint(&mut self, paint_ctx: &mut PaintCtx, _data: &AppState, _env: &Env) {
         let cell_size = paint_ctx.size().width / 12.0;
         let colors: [Color; 12] = [
             Color::RED,
@@ -959,7 +1060,7 @@ impl Widget<AppState> for ColorGrid {
         ];
 
         for (i, color) in colors.iter().enumerate() {
-            let rect = druid::Rect::from_origin_size(
+            let rect = Rect::from_origin_size(
                 (i as f64 * cell_size, 0.0),
                 (cell_size, paint_ctx.size().height),
             );
@@ -969,7 +1070,7 @@ impl Widget<AppState> for ColorGrid {
 
     fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) { }
 
-    fn update(&mut self, _ctx: &mut UpdateCtx, old_data: &AppState, _data: &AppState, _env: &Env) {   }
+    fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {   }
 
     fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &AppState, _env: &Env) -> Size {
         bc.max()

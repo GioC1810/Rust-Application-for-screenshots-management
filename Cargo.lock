@@ -1018,6 +1018,7 @@ dependencies = [
  "imageproc",
  "mouse-rs",
  "native-dialog",
+ "rusttype",
  "screenshots",
 ]
 
