@@ -27,7 +27,7 @@ fn main() {
                     is_highliting:false,
                     is_inserting_text:false,
                     input_text:String::new(),
-                    selected_color:Color::FUCHSIA,
+                    selected_color:Color::RED,
                     all_positions:Vec::new(),
                     draw_path:BezPath::new(),
                     image: None,

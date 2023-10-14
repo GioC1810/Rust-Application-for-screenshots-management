@@ -149,9 +149,9 @@ impl Widget<AppState> for Croptest {
                 if let Some(rect) = &mut data.current_rectangle {
                     rect.update(mouse_event.pos);
                 }
-                if data.draw_lines_mode || data.is_highliting {
-                    data.all_positions.push(mouse_event.pos);
-                    if data.is_drawing {
+                if data.draw_lines_mode==true{
+                    if data.is_drawing==true{
+                        data.all_positions.push(mouse_event.pos);
                         data.draw_path.line_to(data.mouse_position);
                     }
                 }
@@ -166,10 +166,11 @@ impl Widget<AppState> for Croptest {
 
                     data.initial_point = Some(data.mouse_position);
                     let expandable_rect = ExpandableRect::new(mouse_event.pos);
+
                     if data.cropping_mode || data.draw_rect_mode || data.is_inserting_text {
                         data.current_rectangle = Some(expandable_rect);
                     }
-                    if data.draw_lines_mode {
+                    if data.draw_lines_mode==true{
                         data.is_drawing=true;
                         data.draw_path.move_to(data.initial_point.unwrap());
                     }
@@ -189,12 +190,9 @@ impl Widget<AppState> for Croptest {
                         data.rectangles.push(rect);
                         ctx.request_paint();
                     }
-                    if data.draw_lines_mode || data.is_highliting{
-
+                    if data.draw_lines_mode==true{
+                        data.is_drawing=false;
                         data.all_positions.push(data.final_point.unwrap());
-                        if data.draw_lines_mode{
-                            data.is_drawing=false;
-                        }
                     }
                     ctx.request_paint();
                 }
@@ -340,12 +338,12 @@ impl Widget<AppState> for Croptest {
 
                 let mut new_image=None;
                 for i in 0..data.all_positions.len(){
-                    if i==0{
+                   if i==0{
                         new_image=Some(draw_line_segment(&dynamic_image,(data.all_positions[i].x as f32,data.all_positions[i].y as f32),
                                                          (data.all_positions[i+1].x as f32,data.all_positions[i+1].y as f32),
                                                          rgba));
                     }
-                    else if i<(data.all_positions.len()-1){
+                    else if i<(data.all_positions.len()-1) {
 
                         new_image=Some(draw_line_segment(&new_image.unwrap(),(data.all_positions[i].x as f32,data.all_positions[i].y as f32),
                                                          (data.all_positions[i+1].x as f32,data.all_positions[i+1].y as f32),
