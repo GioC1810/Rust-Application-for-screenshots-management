@@ -20,6 +20,7 @@
     use rusttype::{Font,Scale};
 
 
+
     //principal structs
 
     pub struct MyApp;
@@ -503,27 +504,31 @@
 
     pub fn ui_builder() -> impl Widget<AppState> {
 
+        fn take_screenshot(ctx: &mut EventCtx, data: &mut AppState) {
+            let mut is_macos = false;
+            if env::consts::OS.eq("macos") {
+                is_macos = true;
+            }
+            data.current_rectangle = None;
+            data.rectangles.clear();
+            data.cropping_mode = false;
+            data.initial_point = None;
+            data.final_point = None;
+            data.image_height=0;
+            data.image_width=0;
+
+            ctx.new_window(WindowDesc::new(MyApp)
+                .set_window_state(Maximized)
+                .set_position(Point::new(0 as f64, 0 as f64))
+                .show_titlebar(is_macos)
+                .transparent(true)
+            );
+            ctx.window().close();
+        }
+
         let screen_button = Button::new("Screen")
             .on_click(|ctx, data: &mut AppState, _env| {
-                let mut is_macos = false;
-                if env::consts::OS.eq("macos") {
-                    is_macos = true;
-                }
-                data.current_rectangle = None;
-                data.rectangles.clear();
-                data.cropping_mode = false;
-                data.initial_point = None;
-                data.final_point = None;
-                data.image_height=0;
-                data.image_width=0;
-
-                ctx.new_window(WindowDesc::new(MyApp)
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(is_macos)
-                    .transparent(true)
-                );
-                ctx.window().close();
+                take_screenshot(ctx,data);
 
             });
 
@@ -543,16 +548,36 @@
                 ctx.window().close();
             });
 
+        #[tokio::main]
+        pub async fn timer_handling(ctx: &mut EventCtx,monitor_index: usize, time: u64) {
+            // Sleep for time seconds
+            tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
+            // take the screenshot
+            println!("AFTER TIMER ----------");
+        }
+
+        let timer_button = Button::new("TIMER")
+            .on_click(|ctx, data:&mut AppState, _: &Env| {
+                println!("Timer button clicked");
+                timer_handling(ctx,1,1);
+                take_screenshot(ctx,data);
+
+            });
+
         let buttons_row = Flex::row()
             .with_child(screen_button)
             .with_spacer(16.0) // Add spacing between buttons
-            .with_child(memorize_hotkey);
+            .with_child(memorize_hotkey)
+            .with_spacer(16.0) // Add spacing between buttons
+            .with_child(timer_button);
 
         Flex::column()
             .with_child(buttons_row) // Add the buttons row
             .with_spacer(16.0) // Add spacing between buttons and KeyDetectionApp
             .with_child(KeyDetectionApp)
     }
+
+
 
     fn build_ui(_image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
 
@@ -575,6 +600,8 @@
                 data.cropping_mode= !data.cropping_mode;
 
             });
+
+
 
         let img_data = Rc::new(RefCell::new(img.to_png(Compression::Default).unwrap().clone()));
 

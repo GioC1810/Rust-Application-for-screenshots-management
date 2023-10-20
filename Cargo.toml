@@ -14,3 +14,4 @@ arboard="3.2.0"
 imageproc="0.23.0"
 native-dialog = "0.6.4"
 rusttype = "0.9.3"
+tokio = { version = "1.33.0", features = ["full"] }
