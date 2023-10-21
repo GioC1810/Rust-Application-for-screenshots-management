@@ -13,7 +13,7 @@
     use arboard::{Clipboard,ImageData};
     use druid::kurbo::BezPath;
     use image::ColorType::Rgba8;
-    use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_polygon, draw_filled_circle, draw_filled_rect, draw_filled_rect_mut, draw_text, draw_hollow_rect_mut};
+    use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_text, draw_hollow_rect_mut};
     use imageproc::rect::Rect as OtherRect;
     use rusttype::{Font,Scale};
 
@@ -106,8 +106,7 @@
                 data.image=Some(image_buf.clone());
                 data.image_width=image.width();
                 data.image_height=image.height();
-                ctx.new_window(WindowDesc::new(build_ui(Image::new(image_buf), image, data)).set_window_state(Maximized));
-                ctx.window().close();
+                editing_window(ctx,image,  data);
 
             }
         }
@@ -233,8 +232,8 @@
                     data.image = cropped_image_buf.clone();
                     data.image_width = cropped_image.width();
                     data.image_height = cropped_image.height();
-                    ctx.new_window(WindowDesc::new(build_ui(Image::new(cropped_image_buf.unwrap()), cropped_image, data)).set_window_state(Maximized));
-                    ctx.window().close();
+                    editing_window(ctx,cropped_image,  data);
+
                 }
                 let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
                 if data.draw_rect_mode==true {
@@ -261,8 +260,8 @@
                     data.draw_rect_mode=false;
                     data.initial_point = None;
                     data.final_point = None;
-                    ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                    ctx.window().close();
+                    editing_window(ctx,drawn_image,  data);
+
                 }
                 if data.draw_circle_mode==true{
                     let width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
@@ -286,8 +285,8 @@
                     data.draw_circle_mode=false;
                     data.initial_point = None;
                     data.final_point = None;
-                    ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                    ctx.window().close();
+                    editing_window(ctx,drawn_image,  data);
+
                 }
                 if data.draw_arrow_mode==true{
 
@@ -324,8 +323,8 @@
                     data.draw_arrow_mode=false;
                     data.initial_point = None;
                     data.final_point = None;
-                    ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                    ctx.window().close();
+                    editing_window(ctx,drawn_image,  data);
+
                 }
                 if data.draw_lines_mode==true{
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels();
@@ -359,8 +358,8 @@
                     data.draw_lines_mode=false;
                     data.initial_point = None;
                     data.final_point = None;
-                    ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image,  data)).set_window_state(Maximized));
-                    ctx.window().close();
+                    editing_window(ctx,drawn_image,  data);
+
                 }
                 if data.is_inserting_text{
                     ctx.new_window(WindowDesc::new(build_input_box(data))
@@ -407,8 +406,7 @@
                         data.initial_point = None;
                         data.final_point = None;
 
-                        ctx.new_window(WindowDesc::new(build_ui(Image::new(drawn_image_buf.unwrap()), drawn_image, data)).set_window_state(Maximized));
-                        ctx.window().close();
+                        editing_window(ctx,drawn_image,data);
                      }
             }
         }
@@ -499,8 +497,36 @@
 
     //ui generation functions
 
-    pub fn screen_window(){
+    pub fn screen_window(ctx:&mut EventCtx){
 
+        let mut is_macos=false;
+        if env::consts::OS.eq("macos") {
+            is_macos = true;
+        }
+        ctx.new_window(WindowDesc::new(MyApp)
+            .set_window_state(Maximized)
+            .set_position(Point::new(0 as f64, 0 as f64))
+            .show_titlebar(is_macos)
+            .transparent(true)
+        );
+        ctx.window().close();
+    }
+    pub fn initial_window(ctx:&mut EventCtx){
+        let mut is_macos=false;
+        if env::consts::OS.eq("macos") {
+            is_macos = true;
+        }
+        ctx.new_window(WindowDesc::new(ui_builder())
+            .set_window_state(Maximized)
+            .set_position(Point::new(0 as f64, 0 as f64))
+            .show_titlebar(is_macos)
+        );
+        ctx.window().close();
+    }
+    pub fn editing_window(ctx:&mut EventCtx,img: screenshots::Image, my_data:&mut AppState) {
+        ctx.new_window(WindowDesc::new(build_ui(img,  my_data))
+            .set_window_state(Maximized));
+        ctx.window().close();
 
     }
     pub fn ui_builder() -> impl Widget<AppState> {
@@ -519,15 +545,7 @@
             data.image_width=0;
 
             let screens=Screen::all().unwrap();
-            for _ in screens{
-                ctx.new_window(WindowDesc::new(MyApp)
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(is_macos)
-                    .transparent(true)
-                );
-                ctx.window().close();
-            }
+            screen_window(ctx);
         }
 
         let screen_button = Button::new("Screen")
@@ -605,9 +623,7 @@
             .with_child(KeyDetectionApp)
     }
 
-
-
-    fn build_ui(_image:Image, img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
+    fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<AppState> {
 
         //let selected_color_label  = Label::new("Selected Color:");
 
@@ -658,12 +674,7 @@
                 let img_data = Rc::clone(&save_as_png_data);
                 let img_cloned = img_data.borrow().to_owned();
                 save_image(0, img_cloned);
-                ctx.new_window(WindowDesc::new(ui_builder())
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(is_macos)
-                );
-                ctx.window().close();
+                initial_window(ctx);
             });
 
         let save_as_jpg = Button::new("Save as jpg")
@@ -675,13 +686,7 @@
                 let img_data = Rc::clone(&save_as_jpg_data);
                 let img_cloned = img_data.borrow().to_owned();
                 save_image(1, img_cloned);
-                ctx.new_window(WindowDesc::new(ui_builder())
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(is_macos)
-                    .transparent(true)
-                );
-                ctx.window().close();
+                initial_window(ctx);
             });
 
         let save_as_gif = Button::new("Save as gif")
@@ -693,26 +698,14 @@
                 let img_data = Rc::clone(&save_as_gif_data);
                 let img_cloned = img_data.borrow().to_owned();
                 save_image(2, img_cloned);
-                ctx.new_window(WindowDesc::new(ui_builder())
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(is_macos)
-                    .transparent(true)
-                );
-                ctx.window().close();
+                initial_window(ctx);
             });
 
         let copy_to_clipboard = Button::new("Copy to clipboard")
             .on_click(move |ctx, data: &mut AppState, _: &Env| {
                 //let img_data = Rc::clone(&copy_to_clipboard_data);
                 Clipboard::new().unwrap().set_image(ImageData { width: img.width() as usize, height: img.height() as usize, bytes: img.rgba().into() }).expect("Error in copying");
-                ctx.new_window(WindowDesc::new(ui_builder())
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(true)
-                    .transparent(true)
-                );
-                ctx.window().close();
+                initial_window(ctx);
             });
 
         let insert_input=Button::new("Insert Text")
@@ -840,8 +833,9 @@
                 data.final_point = None;
 
 
-                ctx.new_window(WindowDesc::new(build_ui(Image::new(data.image.clone().unwrap()), image,  data)).set_window_state(Maximized));
-                ctx.window().close();
+                /*ctx.new_window(WindowDesc::new(build_ui( image,  data)).set_window_state(Maximized));
+                ctx.window().close();*/
+                editing_window(ctx,image,  data);
                 // Clear the text input field after submission
                 data.input_text.clear();
                 ctx.request_update(); // Request a UI update to clear the text box
@@ -961,12 +955,7 @@
                 }
                 Event::KeyUp(key_event) => {
                     if key_event.key == KbKey::Escape {
-                        ctx.new_window(WindowDesc::new(ui_builder())
-                            .set_window_state(Maximized)
-                            .set_position(Point::new(0 as f64, 0 as f64))
-                            .show_titlebar(true)
-                        );
-                        ctx.window().close();
+                       initial_window(ctx);
                     }
 
                     else{
@@ -978,12 +967,7 @@
                         println!("hoykeys registered after escape: ");
                         data.hotkey_to_register.keys.clear();
                         println!("hoykeys memorized: ");
-                        ctx.new_window(WindowDesc::new(ui_builder())
-                            .set_window_state(Maximized)
-                            .set_position(Point::new(0 as f64, 0 as f64))
-                            .show_titlebar(true)
-                        );
-                        ctx.window().close();
+                        initial_window(ctx);
                     }
                 }
                 _ => {}
@@ -1027,36 +1011,27 @@
                             data.image_height=0;
                             data.image_width=0;
 
-                            ctx.new_window(WindowDesc::new(MyApp)
+                            /*ctx.new_window(WindowDesc::new(MyApp)
                                 .set_window_state(Maximized)
                                 .set_position(Point::new(0 as f64, 0 as f64))
                                 .show_titlebar(true)
                                 .transparent(true)
                             );
-                            ctx.window().close();
+                            ctx.window().close();*/
+                            screen_window(ctx);
                             data.actual_hotkey.keys.clear();
                         }
                     } else if data.actual_hotkey.keys.len() == 4 {
                         println!("overreach the max number of button for the hotkey, start again!");
                         data.actual_hotkey.keys.clear();
-                        ctx.new_window(WindowDesc::new(ui_builder())
-                            .set_window_state(Maximized)
-                            .set_position(Point::new(0 as f64, 0 as f64))
-                            .show_titlebar(true)
-                        );
-                        ctx.window().close();
+                        initial_window(ctx);
                     }
                 }
                 Event::KeyUp(key_event) => {
                     println!("Hotkey pressed: {:?}", key_event.key);
                     data.actual_hotkey.keys.clear();
                     if key_event.key == KbKey::Escape{
-                        ctx.new_window(WindowDesc::new(ui_builder())
-                            .set_window_state(Maximized)
-                            .set_position(Point::new(0 as f64, 0 as f64))
-                            .show_titlebar(true)
-                        );
-                        ctx.window().close();
+                       initial_window(ctx);
                     }
                 }
                 _ => {}
@@ -1142,8 +1117,8 @@
                     let image=screenshots::Image::new(data.image_width as u32,data.image_height as u32,rgba_data);
 
 
-                    ctx.new_window(WindowDesc::new(build_ui(Image::new(data.image.clone().unwrap()), image,  data)).set_window_state(Maximized));
-                    ctx.window().close();
+                    editing_window(ctx,image,  data);
+
                 }
             }
         }
