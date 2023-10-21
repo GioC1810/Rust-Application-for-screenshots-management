@@ -1,13 +1,12 @@
 use druid::{AppLauncher, Point, WindowDesc, KeyEvent, Color};
 use druid::kurbo::BezPath;
-use druid::WindowState::Maximized;
+use druid::WindowState::{Maximized, Minimized};
 use gui_image::{AppState, HotKey, KeyDetectionApp, ui_builder};
 
 fn main() {
 
         let main_window = WindowDesc::new(ui_builder())
-            .transparent(true)
-            .set_window_state(Maximized)
+            .window_size((550.0,200.0))
             .title("Screenshot App")
             .show_titlebar(true);
 
@@ -28,6 +27,7 @@ fn main() {
                     is_inserting_text:false,
                     input_text:String::new(),
                     selected_color:Color::RED,
+                    value:0.0,
                     all_positions:Vec::new(),
                     draw_path:BezPath::new(),
                     image: None,
@@ -38,7 +38,6 @@ fn main() {
                     image_height:0
             })
             .expect("Failed to launch app");
-
 
 }
 

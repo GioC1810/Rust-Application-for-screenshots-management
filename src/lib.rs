@@ -4,10 +4,8 @@
     use std::fs::File;
     use std::io::BufWriter;
     use std::rc::Rc;
-    use druid::widget::{Align, Button, Flex, Image, Label, Painter, SizedBox, TextBox, ZStack};
-    use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle,
-                LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size,
-                UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt, Lens};
+    use druid::widget::{Align, Axis, Button, Flex, Image, KnobStyle, Label, LineBreaking, Painter, Radio, RadioGroup, RangeSlider, SizedBox, Slider, TextBox, ViewSwitcher, ZStack};
+    use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt, Lens, Cursor, KeyOrValue};
     use druid::WindowState::Maximized;
     use druid::piet::ImageFormat as FormatImage;
     use image::{DynamicImage, GenericImage, ImageBuffer, Rgba};
@@ -18,10 +16,6 @@
     use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_polygon, draw_filled_circle, draw_filled_rect, draw_filled_rect_mut, draw_text, draw_hollow_rect_mut};
     use imageproc::rect::Rect as OtherRect;
     use rusttype::{Font,Scale};
-
-
-
-    //principal structs
 
     pub struct MyApp;
     #[derive(Clone, Data, Lens)]
@@ -42,6 +36,7 @@
         pub is_inserting_text:bool,
         pub input_text:String,
         pub selected_color: Color,
+        pub value:f64,
         #[data(same_fn = "point_equal")]
         pub all_positions:Vec<Point>,
         pub draw_path: BezPath,
@@ -62,6 +57,7 @@
                 Event::MouseMove(mouse_event) => {
                     data.mouse_position = mouse_event.pos;
                     ctx.request_paint(); // Request a redraw
+                    ctx.set_cursor(&Cursor::Crosshair);
                     if let Some(rect) = &mut data.current_rectangle {
                         rect.update(mouse_event.pos);
                         ctx.request_paint();
@@ -79,6 +75,7 @@
                 Event::MouseUp(mouse_event) => {
                     if mouse_event.button == MouseButton::Left {
                         data.final_point=Some(data.mouse_position);
+                        ctx.set_cursor(&Cursor::Arrow);
                         if let Some(rect) = data.current_rectangle.take() {
                             data.rectangles.push(rect);
                             ctx.request_paint();
@@ -502,6 +499,10 @@
 
     //ui generation functions
 
+    pub fn screen_window(){
+
+
+    }
     pub fn ui_builder() -> impl Widget<AppState> {
 
         fn take_screenshot(ctx: &mut EventCtx, data: &mut AppState) {
@@ -517,13 +518,16 @@
             data.image_height=0;
             data.image_width=0;
 
-            ctx.new_window(WindowDesc::new(MyApp)
-                .set_window_state(Maximized)
-                .set_position(Point::new(0 as f64, 0 as f64))
-                .show_titlebar(is_macos)
-                .transparent(true)
-            );
-            ctx.window().close();
+            let screens=Screen::all().unwrap();
+            for _ in screens{
+                ctx.new_window(WindowDesc::new(MyApp)
+                    .set_window_state(Maximized)
+                    .set_position(Point::new(0 as f64, 0 as f64))
+                    .show_titlebar(is_macos)
+                    .transparent(true)
+                );
+                ctx.window().close();
+            }
         }
 
         let screen_button = Button::new("Screen")
@@ -556,20 +560,44 @@
             println!("AFTER TIMER ----------");
         }
 
-        let timer_button = Button::new("TIMER")
+        let timer_button = Button::new("Start timer")
             .on_click(|ctx, data:&mut AppState, _: &Env| {
                 println!("Timer button clicked");
-                timer_handling(ctx,1,1);
+                timer_handling(ctx,1,data.value as u64);
                 take_screenshot(ctx,data);
 
             });
 
+        let value = Flex::row()
+            .with_child(Label::dynamic(|value: &AppState, _| {
+                format!("Seconds: {:?}", value.value)
+            }))
+            .with_default_spacer()
+            .with_child(ViewSwitcher::new(
+                |data: &AppState, _| (0.0,10.0),
+                |range, _, _| {
+                    Slider::new()
+                        .with_range(range.0, range.1)
+                        .track_color(KeyOrValue::Concrete(Color::YELLOW))
+                        .knob_style(KnobStyle::Circle)
+                        .axis(Axis::Horizontal)
+                        .with_step(0.5)
+                        .annotated(1.0, 1.0)
+                        .fix_width(150.0)
+                        .lens(AppState::value)
+                        .boxed()
+                },
+            ));
+
         let buttons_row = Flex::row()
             .with_child(screen_button)
-            .with_spacer(16.0) // Add spacing between buttons
+            .with_spacer(16.0)
+           // Add spacing between buttons
             .with_child(memorize_hotkey)
             .with_spacer(16.0) // Add spacing between buttons
-            .with_child(timer_button);
+            .with_child(timer_button)
+            .with_child(value);
+
 
         Flex::column()
             .with_child(buttons_row) // Add the buttons row
@@ -634,7 +662,6 @@
                     .set_window_state(Maximized)
                     .set_position(Point::new(0 as f64, 0 as f64))
                     .show_titlebar(is_macos)
-                    .transparent(true)
                 );
                 ctx.window().close();
             });
@@ -698,7 +725,7 @@
                 data.is_inserting_text=true;
 
             });
-        let draw_rectangle= Button::new("Draw rectangle").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_rectangle= Button::new("⬜").on_click(move |ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -706,7 +733,7 @@
             data.rectangles= Vec::new();
             data.draw_rect_mode= !data.draw_rect_mode;
         });
-        let draw_circle= Button::new("Draw circle").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_circle= Button::new("⚪").on_click(move |ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -714,7 +741,7 @@
             data.rectangles= Vec::new();
             data.draw_circle_mode= !data.draw_circle_mode;
         });
-        let draw_arrow= Button::new("Draw arrow").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_arrow= Button::new("↘").on_click(move |ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -722,7 +749,7 @@
             data.rectangles= Vec::new();
             data.draw_arrow_mode= !data.draw_arrow_mode;
         });
-        let draw_lines= Button::new("Draw lines").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_lines= Button::new("✏").on_click(move |ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -731,7 +758,7 @@
             data.draw_lines_mode= !data.draw_lines_mode;
         });
 
-        let highlight= Button::new("Highlight").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let highlight= Button::new("🖍").on_click(move |ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -741,7 +768,7 @@
         });
 
         let change_color= Button::new("Change Color").on_click(move |ctx, data: &mut AppState, _: &Env| {
-            ctx.new_window(WindowDesc::new(ColorGrid));
+            ctx.new_window(WindowDesc::new(ColorGrid).window_size((500.0,200.0)).set_position((50.0,50.0)));
             ctx.window().close();
         });
 
@@ -938,7 +965,6 @@
                             .set_window_state(Maximized)
                             .set_position(Point::new(0 as f64, 0 as f64))
                             .show_titlebar(true)
-                            .transparent(true)
                         );
                         ctx.window().close();
                     }
@@ -956,7 +982,6 @@
                             .set_window_state(Maximized)
                             .set_position(Point::new(0 as f64, 0 as f64))
                             .show_titlebar(true)
-                            .transparent(true)
                         );
                         ctx.window().close();
                     }
@@ -1018,7 +1043,6 @@
                             .set_window_state(Maximized)
                             .set_position(Point::new(0 as f64, 0 as f64))
                             .show_titlebar(true)
-                            .transparent(true)
                         );
                         ctx.window().close();
                     }
@@ -1031,7 +1055,6 @@
                             .set_window_state(Maximized)
                             .set_position(Point::new(0 as f64, 0 as f64))
                             .show_titlebar(true)
-                            .transparent(true)
                         );
                         ctx.window().close();
                     }
