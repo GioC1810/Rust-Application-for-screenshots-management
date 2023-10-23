@@ -1,6 +1,7 @@
 use druid::{AppLauncher, Point, WindowDesc, KeyEvent, Color};
 use druid::kurbo::BezPath;
 use druid::WindowState::{Maximized, Minimized};
+use screenshots::{DisplayInfo, Screen};
 use gui_image::{AppState, HotKey, KeyDetectionApp, ui_builder};
 
 fn main() {
@@ -35,7 +36,8 @@ fn main() {
                     hotkey_to_register: HotKey::new(),
                     actual_hotkey: HotKey::new(),
                     image_width:0,
-                    image_height:0
+                    image_height:0,
+                    screen: Screen::from_point(0, 0).unwrap()
             })
             .expect("Failed to launch app");
 

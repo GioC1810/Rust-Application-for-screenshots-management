@@ -46,7 +46,9 @@
         pub hotkey_to_register: HotKey,
         pub actual_hotkey: HotKey,
         pub image_width:u32,
-        pub image_height:u32
+        pub image_height:u32,
+        #[data(same_fn = "screen_equal")]
+        pub screen: Screen
     }
 
     impl Widget<AppState> for MyApp {
@@ -100,7 +102,7 @@
                 if env::consts::OS.eq("macos") {
                     initial_height += 55;
                 }
-                let image=Screen::from_point(0,0).unwrap().capture_area(data.initial_point.unwrap().x as i32, initial_height as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
+                let image=Screen::from_point(data.screen.display_info.x,data.screen.display_info.y).unwrap().capture_area(data.initial_point.unwrap().x as i32, initial_height as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
 
                 let image_buf=ImageBuf::from_raw(image.rgba().clone(),FormatImage::RgbaPremul,image.width() as usize,image.height() as usize);
                 data.image=Some(image_buf.clone());
@@ -504,18 +506,24 @@
         );
         ctx.window().close();
     }
-    pub fn screen_window(ctx:&mut EventCtx){
+    pub fn screen_window(ctx:&mut EventCtx, data: &mut AppState){
+
+        let screens=Screen::all().unwrap();
+
 
         let mut is_macos=false;
         if env::consts::OS.eq("macos") {
             is_macos = true;
         }
+
+
         ctx.new_window(WindowDesc::new(MyApp)
             .set_window_state(Maximized)
-            .set_position(Point::new(0 as f64, 0 as f64))
+            .set_position(Point::new(data.screen.display_info.x as f64, data.screen.display_info.y as f64))
             .show_titlebar(is_macos)
             .transparent(true)
         );
+
         ctx.window().close();
     }
 
@@ -540,15 +548,28 @@
             data.image_height=0;
             data.image_width=0;
 
-            let screens=Screen::all().unwrap();
-            screen_window(ctx);
+
+            screen_window(ctx, data);
         }
 
-        let screen_button = Button::new("Screen")
+        let screens = Screen::all().unwrap();
+        let mut monitors_buttons = Flex::column();
+        let mut counter = 0;
+        for screen in screens{
+           monitors_buttons = monitors_buttons.with_child(Button::new("Monitor ".to_owned() + &counter.to_string())
+               .on_click(move |ctx, data: &mut AppState, _env| {
+                   data.screen = screen;
+                   take_screenshot(ctx,data);
+
+           }));
+            counter += 1;
+        }
+
+        /*let screen_button = Button::new("Screen")
             .on_click(|ctx, data: &mut AppState, _env| {
                 take_screenshot(ctx,data);
 
-            });
+            });*/
 
         let memorize_hotkey = Button::new("Add hotkey")
             .on_click(|ctx, data, _env| {
@@ -604,7 +625,8 @@
             ));
 
         let buttons_row = Flex::row()
-            .with_child(screen_button)
+            //.with_child(screen_button)
+            .with_child(monitors_buttons)
             .with_spacer(16.0)
            // Add spacing between buttons
             .with_child(memorize_hotkey)
@@ -923,6 +945,16 @@
         }
         return false;
     }
+
+    fn screen_equal(s1: &Screen, s2: &Screen)->bool {
+
+        if s1.display_info.id == s2.display_info.id {
+            return true
+        }else{
+            return false
+        }
+    }
+
     fn find_hotkey_match(r1: &HotKey, r2: &Vec<HotKey>) -> bool{
         r2.iter().filter(|r| {
             if r.keys.len()  != r1.keys.len() {
@@ -1007,14 +1039,8 @@
                             data.image_height=0;
                             data.image_width=0;
 
-                            /*ctx.new_window(WindowDesc::new(MyApp)
-                                .set_window_state(Maximized)
-                                .set_position(Point::new(0 as f64, 0 as f64))
-                                .show_titlebar(true)
-                                .transparent(true)
-                            );
-                            ctx.window().close();*/
-                            screen_window(ctx);
+
+                            screen_window(ctx,data);
                             data.actual_hotkey.keys.clear();
                         }
                     } else if data.actual_hotkey.keys.len() == 4 {
