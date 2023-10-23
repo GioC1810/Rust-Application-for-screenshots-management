@@ -136,8 +136,8 @@
             }
         }
     }
-    pub struct Croptest;
 
+    pub struct Croptest;
     impl Widget<AppState> for Croptest {
 
         fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
@@ -497,6 +497,13 @@
 
     //ui generation functions
 
+    pub fn initial_window(ctx:&mut EventCtx){
+        ctx.new_window(WindowDesc::new(ui_builder())
+            .window_size((550.0,200.0))
+            .show_titlebar(true)
+        );
+        ctx.window().close();
+    }
     pub fn screen_window(ctx:&mut EventCtx){
 
         let mut is_macos=false;
@@ -511,18 +518,7 @@
         );
         ctx.window().close();
     }
-    pub fn initial_window(ctx:&mut EventCtx){
-        let mut is_macos=false;
-        if env::consts::OS.eq("macos") {
-            is_macos = true;
-        }
-        ctx.new_window(WindowDesc::new(ui_builder())
-            .set_window_state(Maximized)
-            .set_position(Point::new(0 as f64, 0 as f64))
-            .show_titlebar(is_macos)
-        );
-        ctx.window().close();
-    }
+
     pub fn editing_window(ctx:&mut EventCtx,img: screenshots::Image, my_data:&mut AppState) {
         ctx.new_window(WindowDesc::new(build_ui(img,  my_data))
             .set_window_state(Maximized));
