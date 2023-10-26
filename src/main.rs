@@ -37,7 +37,8 @@ fn main() {
                     actual_hotkey: HotKey::new(),
                     image_width:0,
                     image_height:0,
-                    screen: Screen::from_point(0, 0).unwrap()
+                    screen: Screen::from_point(0, 0).unwrap(),
+                    file_path: String::new()
             })
             .expect("Failed to launch app");
 

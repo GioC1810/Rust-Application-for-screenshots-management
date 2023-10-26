@@ -5,7 +5,7 @@
     use std::io::BufWriter;
     use std::rc::Rc;
     use druid::widget::{Align, Axis, Button, Flex, Image, KnobStyle, Label, LineBreaking, Painter, Radio, RadioGroup, RangeSlider, SizedBox, Slider, TextBox, ViewSwitcher, ZStack};
-    use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt, Lens, Cursor, KeyOrValue};
+    use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt, Lens, Cursor, KeyOrValue, Selector};
     use druid::WindowState::Maximized;
     use druid::piet::ImageFormat as FormatImage;
     use image::{DynamicImage, GenericImage, ImageBuffer, Rgba};
@@ -16,6 +16,13 @@
     use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_text, draw_hollow_rect_mut};
     use imageproc::rect::Rect as OtherRect;
     use rusttype::{Font,Scale};
+
+    pub struct SaveImageCommand {
+        pub img_format: i32,
+        pub img: Vec<u8>
+    }
+
+    pub const SAVE_IMAGE_COMMAND: Selector<SaveImageCommand> = Selector::new("save-image-command");
 
     pub struct MyApp;
     #[derive(Clone, Data, Lens)]
@@ -48,7 +55,8 @@
         pub image_width:u32,
         pub image_height:u32,
         #[data(same_fn = "screen_equal")]
-        pub screen: Screen
+        pub screen: Screen,
+        pub file_path: String
     }
 
     impl Widget<AppState> for MyApp {
@@ -667,15 +675,6 @@
 
         let img_data = Rc::new(RefCell::new(img.to_png(Compression::Default).unwrap().clone()));
 
-        fn save_image(img_type: i32, img: Vec<u8>) {
-            let path_name = match img_type {
-                0 => "test_crop_values.png",
-                1 => "test_crop_values.jpg",
-                2 => "test_crop_values.gif",
-                _ => "",
-            };
-            fs::write(path_name, img).unwrap();
-        }
 
         let save_as_png_data = Rc::clone(&img_data);
         let save_as_jpg_data = Rc::clone(&img_data);
@@ -691,8 +690,7 @@
                 }
                 let img_data = Rc::clone(&save_as_png_data);
                 let img_cloned = img_data.borrow().to_owned();
-                save_image(0, img_cloned);
-                initial_window(ctx);
+                ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
             });
 
         let save_as_jpg = Button::new("Save as jpg")
@@ -703,8 +701,7 @@
                 }
                 let img_data = Rc::clone(&save_as_jpg_data);
                 let img_cloned = img_data.borrow().to_owned();
-                save_image(1, img_cloned);
-                initial_window(ctx);
+                ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
             });
 
         let save_as_gif = Button::new("Save as gif")
@@ -715,8 +712,7 @@
                 }
                 let img_data = Rc::clone(&save_as_gif_data);
                 let img_cloned = img_data.borrow().to_owned();
-                save_image(2, img_cloned);
-                initial_window(ctx);
+                ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
             });
 
         let copy_to_clipboard = Button::new("Copy to clipboard")
@@ -1025,6 +1021,18 @@
         fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
             ctx.set_focus(ctx.widget_id());
             match event {
+                Event::Command(cmd) if cmd.is(SAVE_IMAGE_COMMAND) => {
+                    if let image_prop = cmd.get_unchecked(SAVE_IMAGE_COMMAND) {
+                        let path_name = match image_prop.img_format {
+                            0 => "test_crop_values.png",
+                            1 => "test_crop_values.jpg",
+                            2 => "test_crop_values.gif",
+                            _ => "",
+                        };
+                        ctx.new_window(WindowDesc::new(build_ui_save_file(path_name, image_prop.img.clone(), data, image_prop.img_format)));
+                        ctx.window().close();
+                    }
+                }
                 Event::KeyDown(key_event) => {
                     if data.actual_hotkey.keys.len() < 4 && (data.actual_hotkey.keys.len() == 0 || key_event.key.ne(data.actual_hotkey.keys.get(data.actual_hotkey.keys.len() - 1).unwrap())) {
                         println!("button pressed to trigger combination: {:?}", key_event.key);
@@ -1179,4 +1187,39 @@
         }
 
     }
+
+
+    fn build_ui_save_file(file_name: &str, img: Vec<u8>, data: &mut AppState, img_format: i32) -> impl Widget<AppState>{
+
+        let button_save = Button::new("Save image")
+            .on_click(move |ctx, data: &mut AppState, _env|{
+                let extension = match img_format{
+                    0 => ".png",
+                    1 => ".jpg",
+                    2 => ".gif",
+                    _ => ".png"
+                };
+                let file_name = data.clone().file_path + extension;
+                fs::write(file_name, img.clone()).expect("error in saving the file");
+                ctx.new_window(WindowDesc::new(ui_builder())
+                    .set_window_state(Maximized)
+                    .set_position(Point::new(0 as f64, 0 as f64))
+                    .show_titlebar(true)
+                    .transparent(true)
+                );
+                ctx.window().close();
+            });
+
+        let text_box = TextBox::new()
+            .lens(AppState::file_path)
+            .expand_width()
+            .fix_height(20.0);
+
+        Flex::column()
+            .with_child(text_box)
+            .with_spacer(20.0)
+            .with_child(button_save)
+
+    }
+
 
