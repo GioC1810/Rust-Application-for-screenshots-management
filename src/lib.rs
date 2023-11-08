@@ -16,6 +16,7 @@
     use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_text, draw_hollow_rect_mut};
     use imageproc::rect::Rect as OtherRect;
     use rusttype::{Font,Scale};
+    use crate::app_state_derived_lenses::initial_point;
 
     pub struct SaveImageCommand {
         pub img_format: i32,
@@ -67,15 +68,26 @@
                 Event::MouseMove(mouse_event) => {
                     data.mouse_position = mouse_event.pos;
                     ctx.request_paint(); // Request a redraw
+
                     ctx.set_cursor(&Cursor::Crosshair);
                     if let Some(rect) = &mut data.current_rectangle {
-                        rect.update(mouse_event.pos);
+                        rect.update(mouse_event.pos,data.initial_point.unwrap());
                         ctx.request_paint();
                     }
                 }
                 Event::MouseDown(mouse_event) => {
+                    println!("{}",ctx.scale().x());
                     if mouse_event.button == MouseButton::Left {
-                        data.initial_point=Some(data.mouse_position);
+                        /*
+                         implemented for multimonitors. When the mouse is raised outside one monitor the final point is not saved.
+                         Therefore when the mouse comes back to the monitor selected for the screen, the user click to define the final point.
+                         If we already have an initial point, we assign the new clicked points to the final point.
+                        */
+                        if data.initial_point.is_none() {
+                            data.initial_point = Some(data.mouse_position);
+                        }else {
+                            data.final_point = Some(data.mouse_position);
+                        }
                         ctx.request_paint(); // Request a redraw
                         let expandable_rect = ExpandableRect::new(mouse_event.pos);
                         data.current_rectangle = Some(expandable_rect);
@@ -102,6 +114,13 @@
             }
             if data.initial_point.is_some() && data.final_point.is_some(){
 
+                if data.final_point.unwrap().x<data.initial_point.unwrap().x{
+                    let temp=data.initial_point;
+                    data.initial_point=data.final_point;
+                    data.final_point=temp;
+                }
+                data.initial_point = Some(Point::new(data.initial_point.unwrap().x * ctx.scale().x() , data.initial_point.unwrap().y * ctx.scale().y()));
+                data.final_point = Some(Point::new(data.final_point.unwrap().x * ctx.scale().x() , data.final_point.unwrap().y * ctx.scale().y()));
                 let screenshot_width=data.final_point.unwrap().x-data.initial_point.unwrap().x ;
                 let mut screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
 
@@ -110,14 +129,20 @@
                 if env::consts::OS.eq("macos") {
                     initial_height += 55;
                 }
-                let image=Screen::from_point(data.screen.display_info.x,data.screen.display_info.y).unwrap().capture_area(data.initial_point.unwrap().x as i32, initial_height as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
 
-                let image_buf=ImageBuf::from_raw(image.rgba().clone(),FormatImage::RgbaPremul,image.width() as usize,image.height() as usize);
-                data.image=Some(image_buf.clone());
-                data.image_width=image.width();
-                data.image_height=image.height();
-                editing_window(ctx,image,  data);
+                if screenshot_width>5.0 && screenshot_height>5.0{
 
+                    let image=Screen::from_point(data.screen.display_info.x,data.screen.display_info.y).unwrap().capture_area(data.initial_point.unwrap().x as i32, initial_height as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
+
+                    let image_buf=ImageBuf::from_raw(image.rgba().clone(),FormatImage::RgbaPremul,image.width() as usize,image.height() as usize);
+                    data.image=Some(image_buf.clone());
+                    data.image_width=image.width();
+                    data.image_height=image.height();
+                    data.initial_point=None;
+                    data.final_point=None;
+                    editing_window(ctx,image,  data);
+
+                }
             }
         }
 
@@ -134,11 +159,11 @@
             let rect=Rect::from_origin_size( Point{x:0.0, y:0.0}, Size{width:data.image_width as f64,height:data.image_height as f64});
             ctx.stroke(rect, &Color::WHITE,1.0);
 
-            for expandable_rect in &data.rectangles {
+            /*for expandable_rect in &data.rectangles {
 
                 ctx.fill(expandable_rect.rect, &Color::rgba(0.0, 0.0, 0.0, 0.0)); // Transparent background
                 ctx.stroke(expandable_rect.rect, &Color::WHITE, 1.0); // White border
-            }
+            }*/
 
             if let Some(expandable_rect) = &data.current_rectangle {
                 ctx.fill(expandable_rect.rect, &Color::rgba(0.0, 0.0, 0.0, 0.0)); // Transparent background
@@ -156,7 +181,7 @@
                     // Update the mouse position in the app state
                     data.mouse_position = mouse_event.pos;
                     if let Some(rect) = &mut data.current_rectangle {
-                        rect.update(mouse_event.pos);
+                        rect.update(mouse_event.pos,data.initial_point.unwrap());
                     }
                     if data.draw_lines_mode==true{
                         if data.is_drawing==true{
@@ -173,7 +198,16 @@
                         || data.draw_arrow_mode || data.draw_lines_mode || data.is_highliting
                         || data.is_inserting_text) && mouse_event.button == MouseButton::Left {
 
-                        data.initial_point = Some(data.mouse_position);
+                        /*
+                         implemented for multimonitors. When the mouse is raised outside one monitor the final point is not saved.
+                         Therefore when the mouse comes back to the monitor selected for the screen, the user click to define the final point.
+                         If we already have an initial point, we assign the new clicked points to the final point.
+                        */
+                        if data.initial_point.is_none(){
+                            data.initial_point = Some(data.mouse_position);
+                        }else{
+                            data.final_point = Some(data.mouse_position);
+                        }
                         let expandable_rect = ExpandableRect::new(mouse_event.pos);
 
                         if data.cropping_mode || data.draw_rect_mode || data.is_inserting_text {
@@ -230,19 +264,21 @@
                     if env::consts::OS.eq("macos") {
                         initial_height += 55;
                     }
-                    let cropped_dyn_image = dynamic_image.crop_imm(data.initial_point.unwrap().x as u32, initial_height, cropped_width as u32, cropped_height as u32);
-                    let rgba_data_cropped = cropped_dyn_image.clone().into_rgba8().to_vec();
-                    let cropped_image_buf = Some(ImageBuf::from_raw(rgba_data_cropped.clone(), FormatImage::RgbaPremul, cropped_dyn_image.width() as usize, cropped_dyn_image.height() as usize));
-                    let cropped_image = screenshots::Image::new(cropped_dyn_image.width() as u32, cropped_dyn_image.height() as u32, rgba_data_cropped);
+                    if cropped_width>20.0 && cropped_height >20.0{
+                        let cropped_dyn_image = dynamic_image.crop_imm(data.initial_point.unwrap().x as u32, initial_height, cropped_width as u32, cropped_height as u32);
+                        let rgba_data_cropped = cropped_dyn_image.clone().into_rgba8().to_vec();
+                        let cropped_image_buf = Some(ImageBuf::from_raw(rgba_data_cropped.clone(), FormatImage::RgbaPremul, cropped_dyn_image.width() as usize, cropped_dyn_image.height() as usize));
+                        let cropped_image = screenshots::Image::new(cropped_dyn_image.width() as u32, cropped_dyn_image.height() as u32, rgba_data_cropped);
+                        data.image = cropped_image_buf.clone();
+                        data.image_width = cropped_image.width();
+                        data.image_height = cropped_image.height();
+                        // Get image dimensions
 
-                    // Get image dimensions
+                        editing_window(ctx,cropped_image,  data);
+                    }
                     data.cropping_mode = !data.cropping_mode;
                     data.initial_point = None;
                     data.final_point = None;
-                    data.image = cropped_image_buf.clone();
-                    data.image_width = cropped_image.width();
-                    data.image_height = cropped_image.height();
-                    editing_window(ctx,cropped_image,  data);
 
                 }
                 let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
@@ -875,11 +911,17 @@
                 rect: Rect::from_origin_size(origin, Size::ZERO),
             }
         }
-        fn update(&mut self, new_point: Point) {
-            let width = new_point.x - self.rect.origin().x;
-            let height = new_point.y - self.rect.origin().y;
+        fn update(&mut self, new_point: Point, init_point:Point) {
+            let width = (new_point.x - init_point.x).abs();
+            let height = (new_point.y - init_point.y).abs();
             let size = Size::new(width, height);
-            self.rect = Rect::from_origin_size(self.rect.origin(), size);
+
+            if new_point.x <init_point.x{
+                self.rect = Rect::from_origin_size(new_point, size);
+            }
+            else{
+                self.rect = Rect::from_origin_size(init_point, size);
+            }
         }
     }
 
