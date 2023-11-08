@@ -57,7 +57,8 @@
         pub image_height:u32,
         #[data(same_fn = "screen_equal")]
         pub screen: Screen,
-        pub file_path: String
+        pub file_path: String,
+        pub screen_saved_counter: i32
     }
 
     impl Widget<AppState> for MyApp {
@@ -827,7 +828,7 @@
                 .with_child(draw_arrow)
                 .with_child(draw_lines)
                 .with_child(highlight)
-                .with_child(color_circle)
+                //.with_child(color_circle)
                 .with_child(change_color)
                 .with_child(insert_input)
             )
@@ -1065,13 +1066,7 @@
             match event {
                 Event::Command(cmd) if cmd.is(SAVE_IMAGE_COMMAND) => {
                     if let image_prop = cmd.get_unchecked(SAVE_IMAGE_COMMAND) {
-                        let path_name = match image_prop.img_format {
-                            0 => "test_crop_values.png",
-                            1 => "test_crop_values.jpg",
-                            2 => "test_crop_values.gif",
-                            _ => "",
-                        };
-                        ctx.new_window(WindowDesc::new(build_ui_save_file(path_name, image_prop.img.clone(), data, image_prop.img_format)));
+                        ctx.new_window(WindowDesc::new(build_ui_save_file(image_prop.img.clone(), data, image_prop.img_format)));
                         ctx.window().close();
                     }
                 }
@@ -1231,7 +1226,7 @@
     }
 
 
-    fn build_ui_save_file(file_name: &str, img: Vec<u8>, data: &mut AppState, img_format: i32) -> impl Widget<AppState>{
+    fn build_ui_save_file(img: Vec<u8>, data: &mut AppState, img_format: i32) -> impl Widget<AppState>{
 
         let button_save = Button::new("Save image")
             .on_click(move |ctx, data: &mut AppState, _env|{
@@ -1241,15 +1236,26 @@
                     2 => ".gif",
                     _ => ".png"
                 };
-                let file_name = data.clone().file_path + extension;
-                fs::write(file_name, img.clone()).expect("error in saving the file");
-                ctx.new_window(WindowDesc::new(ui_builder())
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
-                    .show_titlebar(true)
-                    .transparent(true)
-                );
-                ctx.window().close();
+                if data.file_path.is_empty(){
+                    ctx.new_window(WindowDesc::new(ui_builder())
+                        .set_window_state(Maximized)
+                        .set_position(Point::new(0 as f64, 0 as f64))
+                        .show_titlebar(true)
+                        .transparent(true)
+                    );
+                    ctx.window().close();
+                } else {
+                    let file_name = data.clone().file_path + "_" + &data.screen_saved_counter.to_string() + extension ;
+                    data.screen_saved_counter += 1;
+                    fs::write(file_name, img.clone()).expect("error in saving the file");
+                    ctx.new_window(WindowDesc::new(ui_builder())
+                        .set_window_state(Maximized)
+                        .set_position(Point::new(0 as f64, 0 as f64))
+                        .show_titlebar(true)
+                        .transparent(true)
+                    );
+                    ctx.window().close();
+                }
             });
 
         let text_box = TextBox::new()
