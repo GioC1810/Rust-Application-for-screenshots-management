@@ -12,10 +12,12 @@
     use screenshots::{Compression, Screen};
     use arboard::{Clipboard,ImageData};
     use druid::kurbo::BezPath;
+    use native_dialog::{FileDialog, MessageDialog, MessageType};
     use image::ColorType::Rgba8;
     use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_text, draw_hollow_rect_mut};
     use imageproc::rect::Rect as OtherRect;
     use rusttype::{Font,Scale};
+    use tokio::sync::oneshot;
     use crate::app_state_derived_lenses::initial_point;
 
     pub struct SaveImageCommand {
@@ -69,6 +71,7 @@
                 Event::MouseMove(mouse_event) => {
                     data.mouse_position = mouse_event.pos;
                     ctx.request_paint(); // Request a redraw
+                    ctx.set_focus(ctx.widget_id());
 
                     ctx.set_cursor(&Cursor::Crosshair);
                     if let Some(rect) = &mut data.current_rectangle {
@@ -141,6 +144,10 @@
                     data.image_height=image.height();
                     data.initial_point=None;
                     data.final_point=None;
+
+                    data.rectangles= Vec::new();
+                    data.current_rectangle=None;
+
                     editing_window(ctx,image,  data);
 
                 }
@@ -567,6 +574,7 @@
             .set_position(Point::new(data.screen.display_info.x as f64, data.screen.display_info.y as f64))
             .show_titlebar(is_macos)
             .transparent(true)
+
         );
 
         ctx.window().close();
@@ -634,6 +642,7 @@
 
         #[tokio::main]
         pub async fn timer_handling(ctx: &mut EventCtx,monitor_index: usize, time: u64) {
+
             // Sleep for time seconds
             tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
             // take the screenshot
@@ -716,7 +725,25 @@
         let save_as_png_data = Rc::clone(&img_data);
         let save_as_jpg_data = Rc::clone(&img_data);
         let save_as_gif_data = Rc::clone(&img_data);
+        let save_data = Rc::clone(&img_data);
         //let copy_to_clipboard_data = Rc::clone(&img_data);
+
+        let save_button = Button::new("Save")
+            .on_click(move |ctx, data: &mut AppState, _: &Env| {
+                let file_name = FileDialog::new()
+                    .add_filter("PNG", &["png"])
+                    .add_filter("JPEG", &["jpeg"])
+                    .add_filter("GIF", &["gif"])
+                    .set_filename(&*("IMG_".to_string() + &data.screen_saved_counter.to_string()))
+                    .show_save_single_file()
+                    .unwrap();
+
+                if file_name.is_some() {
+                    fs::write(file_name.unwrap(), save_data.borrow().to_owned()).expect("error in saving the file");
+                    data.screen_saved_counter +=1;
+                }
+
+            });
 
 
         let save_as_png = Button::new("Save as png")
@@ -822,6 +849,7 @@
             .with_child(Flex::row().with_child(save_as_png)
                 .with_child(save_as_jpg)
                 .with_child(save_as_gif)
+                .with_child(save_button)
             )
             .with_child(copy_to_clipboard)
             .with_child(Flex::row().with_child(draw_rectangle).with_child(draw_circle)
