@@ -189,6 +189,9 @@
                             data.draw_path.line_to(data.mouse_position);
                         }
                     }
+                    if data.cropping_mode || data.draw_rect_mode || data.is_inserting_text {
+                        ctx.set_cursor(&Cursor::Crosshair);
+                    }
 
                     ctx.request_paint();
                 }
@@ -198,11 +201,13 @@
                         || data.draw_arrow_mode || data.draw_lines_mode || data.is_highliting
                         || data.is_inserting_text) && mouse_event.button == MouseButton::Left {
 
-                        /*
-                         implemented for multimonitors. When the mouse is raised outside one monitor the final point is not saved.
-                         Therefore when the mouse comes back to the monitor selected for the screen, the user click to define the final point.
-                         If we already have an initial point, we assign the new clicked points to the final point.
-                        */
+
+                    /*
+                     implemented for multimonitors. When the mouse is raised outside one monitor the final point is not saved.
+                     Therefore when the mouse comes back to the monitor selected for the screen, the user click to define the final point.
+                     If we already have an initial point, we assign the new clicked points to the final point.
+                    */
+
                         if data.initial_point.is_none(){
                             data.initial_point = Some(data.mouse_position);
                         }else{
@@ -228,6 +233,7 @@
                         || data.draw_arrow_mode || data.draw_lines_mode || data.is_highliting
                         || data.is_inserting_text) && mouse_event.button == MouseButton::Left {
 
+                        println!("current mouse position {}", data.mouse_position);
                         data.final_point = Some(data.mouse_position);
 
                         if let Some(rect) = data.current_rectangle.take() {
@@ -280,6 +286,8 @@
                     data.cropping_mode = !data.cropping_mode;
                     data.initial_point = None;
                     data.final_point = None;
+                    data.rectangles=Vec::new();
+                    data.current_rectangle=None;
 
                 }
                 let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
@@ -687,7 +695,6 @@
 
         let toggle_crop_button = Button::new("Toggle Crop")
             .on_click(|_ctx, data:&mut AppState, _: &Env| {
-
                 data.mouse_position=Point::new(0.0, 0.0);
                 data.initial_point=None;
                 data.final_point=None;
