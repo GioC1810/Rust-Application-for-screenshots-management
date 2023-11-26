@@ -1,24 +1,19 @@
     use std::cell::RefCell;
     use std::{fs,env};
     use std::f64::consts::PI;
-    use std::fs::File;
-    use std::io::BufWriter;
     use std::rc::Rc;
-    use druid::widget::{Align, Axis, Button, Flex, Image, KnobStyle, Label, LineBreaking, Painter, Radio, RadioGroup, RangeSlider, SizedBox, Slider, TextBox, ViewSwitcher, ZStack};
+    use druid::widget::{Axis, Button, Flex, Image, KnobStyle, Label,  Painter,SizedBox, Slider, TextBox, ViewSwitcher, ZStack};
     use druid::{Point, BoxConstraints, Color, Data, Env, Event, EventCtx, LayoutCtx, LifeCycle, LifeCycleCtx, MouseButton, PaintCtx, Rect, RenderContext, Size, UpdateCtx, Widget, WindowDesc, ImageBuf, KbKey, WidgetExt, Lens, Cursor, KeyOrValue, Selector};
     use druid::WindowState::Maximized;
     use druid::piet::ImageFormat as FormatImage;
-    use image::{DynamicImage, GenericImage, ImageBuffer, Rgba};
+    use druid::kurbo::BezPath;
+    use image::{DynamicImage, ImageBuffer, Rgba};
+    use imageproc::drawing::{draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_text};
+    use imageproc::rect::Rect as OtherRect;
     use screenshots::{Compression, Screen};
     use arboard::{Clipboard,ImageData};
-    use druid::kurbo::BezPath;
-    use native_dialog::{FileDialog, MessageDialog, MessageType};
-    use image::ColorType::Rgba8;
-    use imageproc::drawing::{Canvas,draw_line_segment, draw_hollow_rect, draw_hollow_circle, draw_text, draw_hollow_rect_mut};
-    use imageproc::rect::Rect as OtherRect;
+    use native_dialog::{FileDialog};
     use rusttype::{Font,Scale};
-    use tokio::sync::oneshot;
-    use crate::app_state_derived_lenses::initial_point;
 
     pub struct SaveImageCommand {
         pub img_format: i32,
@@ -60,7 +55,8 @@
         #[data(same_fn = "screen_equal")]
         pub screen: Screen,
         pub file_path: String,
-        pub screen_saved_counter: i32
+        pub screen_saved_counter: i32,
+        pub is_macos:bool
     }
 
     impl Widget<AppState> for MyApp {
@@ -126,13 +122,9 @@
                 data.initial_point = Some(Point::new(data.initial_point.unwrap().x * ctx.scale().x() , data.initial_point.unwrap().y * ctx.scale().y()));
                 data.final_point = Some(Point::new(data.final_point.unwrap().x * ctx.scale().x() , data.final_point.unwrap().y * ctx.scale().y()));
                 let screenshot_width=data.final_point.unwrap().x-data.initial_point.unwrap().x ;
-                let mut screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
+                let screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
 
-                let mut initial_height = data.initial_point.unwrap().y as i32;
-
-                if env::consts::OS.eq("macos") {
-                    initial_height += 55;
-                }
+                let initial_height = data.initial_point.unwrap().y as i32;
 
                 if screenshot_width>5.0 && screenshot_height>5.0{
 
@@ -219,6 +211,7 @@
                         let expandable_rect = ExpandableRect::new(mouse_event.pos);
 
                         if data.cropping_mode || data.draw_rect_mode || data.is_inserting_text {
+                            ctx.set_cursor(&Cursor::Crosshair);
                             data.current_rectangle = Some(expandable_rect);
                         }
                         if data.draw_lines_mode==true{
@@ -260,7 +253,7 @@
                     }
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
-                    let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                    let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
                         data.image.as_ref().unwrap().width() as u32,
                         data.image.as_ref().unwrap().height() as u32,
                         rgba_data.to_vec(),
@@ -298,14 +291,14 @@
                     }
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
-                    let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                    let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
                         data.image.as_ref().unwrap().width() as u32,
                         data.image.as_ref().unwrap().height() as u32,
                         rgba_data.to_vec(),
                     ).expect("Failed to create ImageBuffer"));
-                    let mut new_image=None;
+                    //let mut new_image=None;
 
-                    new_image= Some(draw_hollow_rect(&dynamic_image,OtherRect::at(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32).of_size(rect_width as u32,rect_height as u32),rgba));
+                    let new_image= Some(draw_hollow_rect(&dynamic_image,OtherRect::at(data.initial_point.unwrap().x as i32,data.initial_point.unwrap().y as i32).of_size(rect_width as u32,rect_height as u32),rgba));
 
                     let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
                     let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
@@ -426,7 +419,7 @@
 
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
-                    let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                    let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
                         data.image.as_ref().unwrap().width() as u32,
                         data.image.as_ref().unwrap().height() as u32,
                         rgba_data.to_vec(),
@@ -466,11 +459,11 @@
         }
 
 
-        fn lifecycle(&mut self, ctx: &mut LifeCycleCtx, event: &LifeCycle, data: &AppState, env: &Env) { }
+        fn lifecycle(&mut self, _ctx: &mut LifeCycleCtx, _event: &LifeCycle, _data: &AppState, _env: &Env) { }
 
-        fn update(&mut self, ctx: &mut UpdateCtx, old_data: &AppState, data: &AppState, env: &Env) {   }
+        fn update(&mut self, _ctx: &mut UpdateCtx, _old_data: &AppState, _data: &AppState, _env: &Env) {   }
 
-        fn layout(&mut self, ctx: &mut LayoutCtx, bc: &BoxConstraints, data: &AppState, env: &Env) -> Size {
+        fn layout(&mut self, _ctx: &mut LayoutCtx, bc: &BoxConstraints, _data: &AppState, _env: &Env) -> Size {
             bc.max()
         }
 
@@ -560,26 +553,19 @@
     }
     pub fn screen_window(ctx:&mut EventCtx, data: &mut AppState){
 
-        let screens=Screen::all().unwrap();
-
-
-        let mut is_macos=false;
-        if env::consts::OS.eq("macos") {
-            is_macos = true;
-        }
+        //let screens=Screen::all().unwrap();
 
 
         ctx.new_window(WindowDesc::new(MyApp)
             .set_window_state(Maximized)
             .set_position(Point::new(data.screen.display_info.x as f64, data.screen.display_info.y as f64))
-            .show_titlebar(is_macos)
+            .show_titlebar(data.is_macos)
             .transparent(true)
 
         );
 
         ctx.window().close();
     }
-
     pub fn editing_window(ctx:&mut EventCtx,img: screenshots::Image, my_data:&mut AppState) {
         ctx.new_window(WindowDesc::new(build_ui(img,  my_data))
             .set_window_state(Maximized));
@@ -589,10 +575,7 @@
     pub fn ui_builder() -> impl Widget<AppState> {
 
         fn take_screenshot(ctx: &mut EventCtx, data: &mut AppState) {
-            let mut is_macos = false;
-            if env::consts::OS.eq("macos") {
-                is_macos = true;
-            }
+
             data.current_rectangle = None;
             data.rectangles.clear();
             data.cropping_mode = false;
@@ -625,11 +608,8 @@
             });*/
 
         let memorize_hotkey = Button::new("Add hotkey")
-            .on_click(|ctx, data, _env| {
-                let mut is_macos = false;
-                if env::consts::OS.eq("macos") {
-                    is_macos = true;
-                }
+                .on_click(|ctx, data, _env| {
+
                 ctx.new_window(WindowDesc::new(build_hotkey_ui(data))
                     .title("digit hotkey")
                     .set_window_state(Maximized)
@@ -641,7 +621,7 @@
             });
 
         #[tokio::main]
-        pub async fn timer_handling(ctx: &mut EventCtx,monitor_index: usize, time: u64) {
+        pub async fn timer_handling(_ctx: &mut EventCtx,_monitor_index: usize, time: u64) {
 
             // Sleep for time seconds
             tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
@@ -663,7 +643,7 @@
             }))
             .with_default_spacer()
             .with_child(ViewSwitcher::new(
-                |data: &AppState, _| (0.0,10.0),
+                |_data: &AppState, _| (0.0,10.0),
                 |range, _, _| {
                     Slider::new()
                         .with_range(range.0, range.1)
@@ -706,7 +686,7 @@
             .border(Color::BLACK, 2.0);
 
         let toggle_crop_button = Button::new("Toggle Crop")
-            .on_click(|ctx, data:&mut AppState, _: &Env| {
+            .on_click(|_ctx, data:&mut AppState, _: &Env| {
 
                 data.mouse_position=Point::new(0.0, 0.0);
                 data.initial_point=None;
@@ -729,7 +709,7 @@
         //let copy_to_clipboard_data = Rc::clone(&img_data);
 
         let save_button = Button::new("Save")
-            .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            .on_click(move |_ctx, data: &mut AppState, _: &Env| {
                 let file_name = FileDialog::new()
                     .add_filter("PNG", &["png"])
                     .add_filter("JPEG", &["jpeg"])
@@ -747,47 +727,37 @@
 
 
         let save_as_png = Button::new("Save as png")
-            .on_click(move |ctx, data: &mut AppState, _: &Env| {
-                let mut is_macos = false;
-                if env::consts::OS.eq("macos") {
-                    is_macos = true;
-                }
+            .on_click(move |ctx, _data: &mut AppState, _: &Env| {
+
                 let img_data = Rc::clone(&save_as_png_data);
                 let img_cloned = img_data.borrow().to_owned();
                 ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
             });
 
         let save_as_jpg = Button::new("Save as jpg")
-            .on_click(move |ctx, data: &mut AppState, _: &Env| {
-                let mut is_macos = false;
-                if env::consts::OS.eq("macos") {
-                    is_macos = true;
-                }
+            .on_click(move |ctx, _data: &mut AppState, _: &Env| {
                 let img_data = Rc::clone(&save_as_jpg_data);
                 let img_cloned = img_data.borrow().to_owned();
                 ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
             });
 
         let save_as_gif = Button::new("Save as gif")
-            .on_click(move |ctx, data: &mut AppState, _: &Env| {
-                let mut is_macos = false;
-                if env::consts::OS.eq("macos") {
-                    is_macos = true;
-                }
+            .on_click(move |ctx, _data: &mut AppState, _: &Env| {
+
                 let img_data = Rc::clone(&save_as_gif_data);
                 let img_cloned = img_data.borrow().to_owned();
                 ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
             });
 
         let copy_to_clipboard = Button::new("Copy to clipboard")
-            .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            .on_click(move |ctx, _data: &mut AppState, _: &Env| {
                 //let img_data = Rc::clone(&copy_to_clipboard_data);
                 Clipboard::new().unwrap().set_image(ImageData { width: img.width() as usize, height: img.height() as usize, bytes: img.rgba().into() }).expect("Error in copying");
                 initial_window(ctx);
             });
 
         let insert_input=Button::new("Insert Text")
-            .on_click(move |ctx, data: &mut AppState, _: &Env| {
+            .on_click(move |_ctx, data: &mut AppState, _: &Env| {
                 data.mouse_position=Point::new(0.0, 0.0);
                 data.initial_point=None;
                 data.final_point=None;
@@ -796,7 +766,7 @@
                 data.is_inserting_text=true;
 
             });
-        let draw_rectangle= Button::new("⬜").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_rectangle= Button::new("⬜").on_click(move |_ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -804,7 +774,7 @@
             data.rectangles= Vec::new();
             data.draw_rect_mode= !data.draw_rect_mode;
         });
-        let draw_circle= Button::new("⚪").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_circle= Button::new("⚪").on_click(move |_ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -812,7 +782,7 @@
             data.rectangles= Vec::new();
             data.draw_circle_mode= !data.draw_circle_mode;
         });
-        let draw_arrow= Button::new("↘").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_arrow= Button::new("↘").on_click(move |_ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -820,7 +790,7 @@
             data.rectangles= Vec::new();
             data.draw_arrow_mode= !data.draw_arrow_mode;
         });
-        let draw_lines= Button::new("✏").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let draw_lines= Button::new("✏").on_click(move |_ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -829,7 +799,7 @@
             data.draw_lines_mode= !data.draw_lines_mode;
         });
 
-        let highlight= Button::new("🖍").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let highlight= Button::new("🖍").on_click(move |_ctx, data: &mut AppState, _: &Env| {
             data.mouse_position=Point::new(0.0, 0.0);
             data.initial_point=None;
             data.final_point=None;
@@ -838,12 +808,20 @@
             data.is_highliting= true;
         });
 
-        let change_color= Button::new("Change Color").on_click(move |ctx, data: &mut AppState, _: &Env| {
+        let change_color= Button::new("Change Color").on_click(move |ctx, _data: &mut AppState, _: &Env| {
             ctx.new_window(WindowDesc::new(ColorGrid).window_size((500.0,200.0)).set_position((50.0,50.0)));
             ctx.window().close();
         });
 
-
+        let mut editing_row=Flex::row().with_child(draw_rectangle).with_child(draw_circle)
+            .with_child(draw_arrow)
+            .with_child(draw_lines)
+            .with_child(highlight)
+            .with_child(change_color)
+            .with_child(insert_input);
+        if !my_data.is_macos{
+           editing_row=editing_row.with_child(color_circle);
+        }
         Flex::column()
             .with_child(toggle_crop_button)
             .with_child(Flex::row().with_child(save_as_png)
@@ -852,13 +830,8 @@
                 .with_child(save_button)
             )
             .with_child(copy_to_clipboard)
-            .with_child(Flex::row().with_child(draw_rectangle).with_child(draw_circle)
-                .with_child(draw_arrow)
-                .with_child(draw_lines)
-                .with_child(highlight)
-                //.with_child(color_circle)
-                .with_child(change_color)
-                .with_child(insert_input)
+            .with_child(
+                editing_row
             )
             .with_child(SizedBox::new(ZStack::new(Image::new(my_data.image.clone().unwrap()))
                 .with_centered_child(Croptest))
@@ -885,22 +858,22 @@
                 // You can perform further actions with the input text, e.g., send it to a server, process it, etc.
                 // For now, we'll just print it to the console.
 
-                let rgba_data = data.image.as_ref().unwrap().raw_pixels().to_vec();
+                //let rgba_data = data.image.as_ref().unwrap().raw_pixels().to_vec();
                 //let image=screenshots::Image::new(data.image_width as u32,data.image_height as u32,rgba_data);
 
 
                 let rgba_data = data.image.as_ref().unwrap().raw_pixels();
                 let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
 
-                let mut dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
                     data.image.as_ref().unwrap().width() as u32,
                     data.image.as_ref().unwrap().height() as u32,
                     rgba_data.to_vec(),
                 ).expect("Failed to create ImageBuffer"));
-                let mut new_image=None;
+                //let mut new_image=None;
                 let font_data: &[u8] = include_bytes!("../Montserrat-Italic.otf");
                 let font = Font::try_from_bytes(font_data);
-                new_image= Some(draw_text(&dynamic_image, rgba, data.initial_point.unwrap().x as i32, data.initial_point.unwrap().y as i32, Scale::uniform((data.final_point.unwrap().y-data.initial_point.unwrap().y) as f32),
+                let new_image= Some(draw_text(&dynamic_image, rgba, data.initial_point.unwrap().x as i32, data.initial_point.unwrap().y as i32, Scale::uniform((data.final_point.unwrap().y-data.initial_point.unwrap().y) as f32),
                                           &font.unwrap(), &*data.input_text));
 
                 let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
@@ -1254,7 +1227,7 @@
     }
 
 
-    fn build_ui_save_file(img: Vec<u8>, data: &mut AppState, img_format: i32) -> impl Widget<AppState>{
+    fn build_ui_save_file(img: Vec<u8>, _data: &mut AppState, img_format: i32) -> impl Widget<AppState>{
 
         let button_save = Button::new("Save image")
             .on_click(move |ctx, data: &mut AppState, _env|{

@@ -1,11 +1,13 @@
-use druid::{AppLauncher, Point, WindowDesc, KeyEvent, Color};
+use druid::{AppLauncher, Point, WindowDesc, Color};
 use druid::kurbo::BezPath;
-use druid::WindowState::{Maximized, Minimized};
-use screenshots::{DisplayInfo, Screen};
-use gui_image::{AppState, HotKey, KeyDetectionApp, ui_builder};
-
+use screenshots::{Screen};
+use gui_image::{AppState, HotKey, ui_builder};
+use std::env;
 fn main() {
-
+        let mut is_macos = false;
+        if env::consts::OS.eq("macos") {
+            is_macos = true;
+        }
         let main_window = WindowDesc::new(ui_builder())
             .window_size((550.0,200.0))
             .title("Screenshot App")
@@ -39,7 +41,8 @@ fn main() {
                     image_height:0,
                     screen: Screen::from_point(0, 0).unwrap(),
                     file_path: String::new(),
-                    screen_saved_counter: 0
+                    screen_saved_counter: 0,
+                    is_macos:is_macos
             })
             .expect("Failed to launch app");
 
