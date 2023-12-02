@@ -839,10 +839,7 @@
         }
         Flex::column()
             .with_child(toggle_crop_button)
-            .with_child(Flex::row().with_child(save_as_png)
-                .with_child(save_as_jpg)
-                .with_child(save_as_gif)
-                .with_child(save_button)
+            .with_child(save_row
             )
             .with_child(copy_to_clipboard)
             .with_child(
