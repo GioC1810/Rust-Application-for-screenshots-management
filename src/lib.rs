@@ -76,7 +76,6 @@
                     }
                 }
                 Event::MouseDown(mouse_event) => {
-                    println!("{}",ctx.scale().x());
                     if mouse_event.button == MouseButton::Left {
                         /*
                          implemented for multimonitors. When the mouse is raised outside one monitor the final point is not saved.
@@ -119,12 +118,24 @@
                     data.initial_point=data.final_point;
                     data.final_point=temp;
                 }
-                data.initial_point = Some(Point::new(data.initial_point.unwrap().x * ctx.scale().x() , data.initial_point.unwrap().y * ctx.scale().y()));
-                data.final_point = Some(Point::new(data.final_point.unwrap().x * ctx.scale().x() , data.final_point.unwrap().y * ctx.scale().y()));
+
+                let mut divisor_factor = 1.0;
+                if env::consts::OS.eq("macos"){
+                    divisor_factor *= 2.0;
+                }
+
+                data.initial_point = Some(Point::new(data.initial_point.unwrap().x * (ctx.scale().x())/divisor_factor , data.initial_point.unwrap().y * (ctx.scale().y())/divisor_factor));
+                data.final_point = Some(Point::new(data.final_point.unwrap().x * (ctx.scale().x())/divisor_factor , data.final_point.unwrap().y * (ctx.scale().y())/divisor_factor));
+
+
                 let screenshot_width=data.final_point.unwrap().x-data.initial_point.unwrap().x ;
                 let screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
 
-                let initial_height = data.initial_point.unwrap().y as i32;
+                let mut initial_height = data.initial_point.unwrap().y;
+
+                if env::consts::OS.eq("macos"){
+                    initial_height += 72.5;
+                }
 
                 if screenshot_width>5.0 && screenshot_height>5.0{
 
@@ -233,7 +244,6 @@
                         || data.draw_arrow_mode || data.draw_lines_mode || data.is_highliting
                         || data.is_inserting_text) && mouse_event.button == MouseButton::Left {
 
-                        println!("current mouse position {}", data.mouse_position);
                         data.final_point = Some(data.mouse_position);
 
                         if let Some(rect) = data.current_rectangle.take() {
@@ -254,9 +264,6 @@
 
                     let cropped_width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
                     let mut cropped_height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
-                    if env::consts::OS.eq("macos") {
-                        cropped_height += 100.0;
-                    }
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
                     let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
@@ -266,11 +273,8 @@
                     )
                         .expect("Failed to create ImageBuffer"));
 
-                    let mut initial_height = data.initial_point.unwrap().y as u32;
+                    let initial_height = data.initial_point.unwrap().y as u32;
 
-                    if env::consts::OS.eq("macos") {
-                        initial_height += 55;
-                    }
                     if cropped_width>20.0 && cropped_height >20.0{
                         let cropped_dyn_image = dynamic_image.crop_imm(data.initial_point.unwrap().x as u32, initial_height, cropped_width as u32, cropped_height as u32);
                         let rgba_data_cropped = cropped_dyn_image.clone().into_rgba8().to_vec();
@@ -529,7 +533,6 @@
 
             }
             if data.draw_lines_mode==true{
-                println!("nel paint delle linee");
                 ctx.stroke(&data.draw_path, &data.selected_color, 2.0);
             }
             if data.is_highliting{
@@ -634,12 +637,10 @@
             // Sleep for time seconds
             tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
             // take the screenshot
-            println!("AFTER TIMER ----------");
         }
 
         let timer_button = Button::new("Start timer")
             .on_click(|ctx, data:&mut AppState, _: &Env| {
-                println!("Timer button clicked");
                 timer_handling(ctx,1,data.value as u64);
                 take_screenshot(ctx,data);
 
@@ -860,7 +861,6 @@
             .on_click(|ctx, data: &mut AppState, _env| {
                 // Handle the submitted text here
                 let input_text = &data.input_text;
-                println!("Input Text: {}", input_text);
 
                 // You can perform further actions with the input text, e.g., send it to a server, process it, etc.
                 // For now, we'll just print it to the console.
@@ -1024,7 +1024,6 @@
                     if data.hotkey_to_register.keys.len() < 4 && key_event.key != KbKey::Escape
                         && (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
                         data.hotkey_to_register.keys.push(key_event.key.clone());
-                        println!("insert new hotkey: {:?}", data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len() - 1));
                     }
 
                 }
@@ -1035,13 +1034,7 @@
 
                     else{
                         data.hotkeys.push(data.hotkey_to_register.clone());
-
-                        for hotkey in &data.hotkeys{
-                            print_hotkeys(&hotkey.keys);
-                        }
-                        println!("hoykeys registered after escape: ");
                         data.hotkey_to_register.keys.clear();
-                        println!("hoykeys memorized: ");
                         initial_window(ctx);
                     }
                 }
@@ -1060,12 +1053,6 @@
         fn paint(&mut self, _ctx: &mut PaintCtx, _data: &AppState, _env: &Env) {
         }
     }
-    fn print_hotkeys(r: &Vec<KbKey>) {
-        println!("hotkeys printed______");
-        for (i,  key) in r.iter().enumerate() {
-            println!("character number: {:?}, character value: {:?}", i, key);
-        }
-    }
 
     pub struct KeyDetectionApp;
     impl Widget<AppState> for KeyDetectionApp {
@@ -1073,17 +1060,14 @@
             ctx.set_focus(ctx.widget_id());
             match event {
                 Event::Command(cmd) if cmd.is(SAVE_IMAGE_COMMAND) => {
-                    if let image_prop = cmd.get_unchecked(SAVE_IMAGE_COMMAND) {
-                        ctx.new_window(WindowDesc::new(build_ui_save_file(image_prop.img.clone(), data, image_prop.img_format)));
-                        ctx.window().close();
-                    }
+                    let image_prop = cmd.get_unchecked(SAVE_IMAGE_COMMAND);
+                    ctx.new_window(WindowDesc::new(build_ui_save_file(image_prop.img.clone(), data, image_prop.img_format)));
+                    ctx.window().close();
                 }
                 Event::KeyDown(key_event) => {
                     if data.actual_hotkey.keys.len() < 4 && (data.actual_hotkey.keys.len() == 0 || key_event.key.ne(data.actual_hotkey.keys.get(data.actual_hotkey.keys.len() - 1).unwrap())) {
-                        println!("button pressed to trigger combination: {:?}", key_event.key);
                         data.actual_hotkey.keys.push(key_event.key.clone());
                         if find_hotkey_match(&data.actual_hotkey, &data.hotkeys) {
-                            println!("combination triggered!!");
                             data.current_rectangle = None;
                             data.rectangles.clear();
                             data.cropping_mode = false;
@@ -1097,13 +1081,11 @@
                             data.actual_hotkey.keys.clear();
                         }
                     } else if data.actual_hotkey.keys.len() == 4 {
-                        println!("overreach the max number of button for the hotkey, start again!");
                         data.actual_hotkey.keys.clear();
                         initial_window(ctx);
                     }
                 }
                 Event::KeyUp(key_event) => {
-                    println!("Hotkey pressed: {:?}", key_event.key);
                     data.actual_hotkey.keys.clear();
                     if key_event.key == KbKey::Escape{
                        initial_window(ctx);
@@ -1186,7 +1168,6 @@
                         Color::NAVY
                     ];
                     data.selected_color = colors[cell_index];
-                    println!("{:?}", data.selected_color);
                     ctx.request_paint(); // Trigger a repaint to show the selected color.
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels().to_vec();
                     let image=screenshots::Image::new(data.image_width as u32,data.image_height as u32,rgba_data);
