@@ -830,6 +830,13 @@
         if !my_data.is_macos{
            editing_row=editing_row.with_child(color_circle);
         }
+
+        let mut save_row=Flex::row().with_child(save_as_png)
+            .with_child(save_as_jpg)
+            .with_child(save_as_gif);
+        if !my_data.is_macos{
+            save_row=Flex::row().with_child(save_button)
+        }
         Flex::column()
             .with_child(toggle_crop_button)
             .with_child(Flex::row().with_child(save_as_png)
