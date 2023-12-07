@@ -42,7 +42,7 @@ fn main() {
                     screen: Screen::from_point(0, 0).unwrap(),
                     file_path: String::new(),
                     screen_saved_counter: 0,
-                    is_macos:is_macos
+                    is_macos
             })
             .expect("Failed to launch app");
 

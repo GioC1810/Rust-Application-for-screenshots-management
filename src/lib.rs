@@ -296,11 +296,17 @@
                 }
                 let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
                 if data.draw_rect_mode==true {
+
+                    if data.initial_point.unwrap().x>data.final_point.unwrap().x{
+                        let temp=data.initial_point;
+                        data.initial_point=data.final_point;
+
+                        data.final_point=temp;
+
+                    }
                     let rect_width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
                     let mut rect_height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
-                    if env::consts::OS.eq("macos") {
-                        rect_height += 100.0;
-                    }
+
                     let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
                     let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
@@ -761,7 +767,7 @@
             .on_click(move |ctx, _data: &mut AppState, _: &Env| {
                 //let img_data = Rc::clone(&copy_to_clipboard_data);
                 Clipboard::new().unwrap().set_image(ImageData { width: img.width() as usize, height: img.height() as usize, bytes: img.rgba().into() }).expect("Error in copying");
-                initial_window(ctx);
+                //initial_window(ctx);
             });
 
         let insert_input=Button::new("Insert Text")
