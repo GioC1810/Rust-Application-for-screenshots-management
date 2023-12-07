@@ -120,7 +120,7 @@
                 }
 
                 let mut divisor_factor = 1.0;
-                if env::consts::OS.eq("macos"){
+                if data.is_macos{
                     divisor_factor *= 2.0;
                 }
 
@@ -133,7 +133,7 @@
 
                 let mut initial_height = data.initial_point.unwrap().y;
 
-                if env::consts::OS.eq("macos"){
+                if data.is_macos{
                     initial_height += 72.5;
                 }
 
@@ -334,7 +334,7 @@
                 if data.draw_circle_mode==true{
                     let width = data.final_point.unwrap().x - data.initial_point.unwrap().x;
                     let mut height = data.final_point.unwrap().y - data.initial_point.unwrap().y;
-                    if env::consts::OS.eq("macos") {
+                    if data.is_macos {
                         height += 100.0;
                     }
                     let radius= f64::sqrt(width*width+height*height);
@@ -501,7 +501,7 @@
                 if data.initial_point.is_some() {
                     let width = data.mouse_position.x - data.initial_point.unwrap().x;
                     let mut height = data.mouse_position.y - data.initial_point.unwrap().y;
-                    if env::consts::OS.eq("macos") {
+                    if data.is_macos {
                         height += 100.0;
                     }
                     let radius = f64::sqrt(width * width + height * height);
