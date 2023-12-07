@@ -141,6 +141,9 @@
 
                     let image=Screen::from_point(data.screen.display_info.x,data.screen.display_info.y).unwrap().capture_area(data.initial_point.unwrap().x as i32, initial_height as i32,screenshot_width as u32, screenshot_height as u32).unwrap();
 
+                    fs::write(&*("IMG_".to_string() + &data.screen_saved_counter.to_string()+".png"),image.to_png(Compression::Default).expect("--").clone()).expect("error in saving the file");
+                    data.screen_saved_counter+=1;
+
                     let image_buf=ImageBuf::from_raw(image.rgba().clone(),FormatImage::RgbaPremul,image.width() as usize,image.height() as usize);
                     data.image=Some(image_buf.clone());
                     data.image_width=image.width();
