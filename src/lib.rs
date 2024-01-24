@@ -12,6 +12,7 @@
     use imageproc::rect::Rect as OtherRect;
     use screenshots::{Compression, Screen};
     use arboard::{Clipboard,ImageData};
+    use global_hotkey::{GlobalHotKeyEvent, GlobalHotKeyManager, hotkey::{HotKey as HotKeyGlobal, Modifiers, Code}};
     use native_dialog::{FileDialog};
     use rusttype::{Font,Scale};
 
@@ -56,7 +57,8 @@
         pub screen: Screen,
         pub file_path: String,
         pub screen_saved_counter: i32,
-        pub is_macos:bool
+        pub is_macos:bool,
+        pub hotkey_manager: Rc<GlobalHotKeyManager>
     }
 
     impl Widget<AppState> for MyApp {
@@ -1038,15 +1040,15 @@
                         && (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
                         data.hotkey_to_register.keys.push(key_event.key.clone());
                     }
-
                 }
                 Event::KeyUp(key_event) => {
                     if key_event.key == KbKey::Escape {
                        initial_window(ctx);
                     }
-
                     else{
                         data.hotkeys.push(data.hotkey_to_register.clone());
+                        let hotkey = HotKeyGlobal::new(Some(Modifiers::SHIFT), Code::KeyF);
+                        data.hotkey_manager.register(hotkey).expect("error in registering hotkey");
                         data.hotkey_to_register.keys.clear();
                         initial_window(ctx);
                     }
@@ -1088,7 +1090,6 @@
                             data.final_point = None;
                             data.image_height=0;
                             data.image_width=0;
-
 
                             screen_window(ctx,data);
                             data.actual_hotkey.keys.clear();

@@ -15,3 +15,4 @@ imageproc="0.23.0"
 native-dialog = "0.6.4"
 rusttype = "0.9.3"
 tokio = { version = "1.33.0", features = ["full"] }
+global-hotkey = "0.4.2"
