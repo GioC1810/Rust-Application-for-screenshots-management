@@ -1045,9 +1045,10 @@ pub struct HotKeyRecord;
 impl Widget<AppState> for HotKeyRecord {
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
-
+        ctx.set_focus(ctx.widget_id());
         match event {
             Event::KeyDown(key_event) => {
+
                 if data.hotkey_to_register.keys.len() < 4 && key_event.key != KbKey::Escape
                     && (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
                     data.hotkey_to_register.keys.push(key_event.key.clone());
@@ -1059,6 +1060,7 @@ impl Widget<AppState> for HotKeyRecord {
                     initial_window(ctx);
                 }
                 else{
+
                     data.hotkeys.push(data.hotkey_to_register.clone());
                     let hotkey = HotKeyGlobal::new(Some(Modifiers::SHIFT), Code::KeyF);
                     data.hotkey_manager.register(hotkey).expect("error in registering hotkey");
