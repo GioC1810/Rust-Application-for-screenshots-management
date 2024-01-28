@@ -71,7 +71,7 @@ impl Widget<AppState> for MyApp {
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
         ctx.window().bring_to_front_and_focus();
-        println!("cIAo");
+
         match event {
 
             Event::MouseMove(mouse_event) => {
@@ -1173,15 +1173,17 @@ fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
 
     // Add a button next to each hotkey item
     for (index, hotkey) in data.hotkeys.iter().enumerate() {
+        let hotkey_cloned=hotkey.clone();
         let delete_button = Button::new(format!("Delete Hotkey {}", index + 1))
             .on_click(move |ctx, d: &mut AppState, _env| {
-                //let hkdict =  HKdict::new();
-                //let hkdict_modifiers = HKdictModifiers::new();
-                //let modifier = *hkdict_modifiers.my_map.get(hotkey.keys[0].to_string()).unwrap();
-                //let key = *hkdict.my_map.get(&hotkey.keys[1].to_string().to_lowercase()).unwrap();
 
-                //let hotkey_to_cancel = HotKeyGlobal::new(Some(hotkey.keys[0]), hotkey.keys[1]);
-                //d.hotkey_manager.unregister(hotkey_to_cancel).expect("error in registering hotkey");
+                let hkdict =  HKdict::new();
+                let hkdict_modifiers = HKdictModifiers::new();
+                let modifier = hkdict_modifiers.my_map.get(&hotkey_cloned.keys[0].to_string()).unwrap().clone();
+                let key = hkdict.my_map.get(&hotkey_cloned.keys[1].to_string().to_lowercase()).unwrap().clone();
+
+                let hotkey_to_cancel = HotKeyGlobal::new(Some(modifier), key);
+                d.hotkey_manager.unregister(hotkey_to_cancel).expect("error in registering hotkey");
 
                 // Handle the click event to delete the corresponding item
                 d.hotkeys.remove(index);
@@ -1193,6 +1195,7 @@ fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
                     .transparent(false)
                 );
                 ctx.window().close();
+
             });
 
         hotkey_list = hotkey_list.with_child(
