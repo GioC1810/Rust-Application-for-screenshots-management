@@ -650,8 +650,8 @@ pub fn ui_builder() -> impl Widget<AppState> {
 
             ctx.new_window(WindowDesc::new(build_hotkey_ui(data))
                 .title("digit hotkey")
-                .set_window_state(Maximized)
-                .set_position(Point::new(0 as f64, 0 as f64))
+                .window_size((500.0,200.0))
+                .set_always_on_top(true)
                 .show_titlebar(true)
                 .transparent(false)
             );
@@ -1170,16 +1170,25 @@ fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
     // You can use a Flex to lay out the hotkey items vertically
     let mut hotkey_list = Flex::column();
 
+
     // Add a button next to each hotkey item
     for (index, hotkey) in data.hotkeys.iter().enumerate() {
         let delete_button = Button::new(format!("Delete Hotkey {}", index + 1))
-            .on_click(move |ctx, data: &mut AppState, _env| {
+            .on_click(move |ctx, d: &mut AppState, _env| {
+                //let hkdict =  HKdict::new();
+                //let hkdict_modifiers = HKdictModifiers::new();
+                //let modifier = *hkdict_modifiers.my_map.get(hotkey.keys[0].to_string()).unwrap();
+                //let key = *hkdict.my_map.get(&hotkey.keys[1].to_string().to_lowercase()).unwrap();
+
+                //let hotkey_to_cancel = HotKeyGlobal::new(Some(hotkey.keys[0]), hotkey.keys[1]);
+                //d.hotkey_manager.unregister(hotkey_to_cancel).expect("error in registering hotkey");
+
                 // Handle the click event to delete the corresponding item
-                data.hotkeys.remove(index);
-                ctx.new_window(WindowDesc::new(build_hotkey_ui(data))
+                d.hotkeys.remove(index);
+                ctx.new_window(WindowDesc::new(build_hotkey_ui(d))
                     .title("digit hotkey")
-                    .set_window_state(Maximized)
-                    .set_position(Point::new(0 as f64, 0 as f64))
+                    .window_size((500.0,200.0))
+                    .set_always_on_top(true)
                     .show_titlebar(true)
                     .transparent(false)
                 );
@@ -1195,6 +1204,7 @@ fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
     }
 
     Flex::column()
+        .with_child(Label::new("Choose one from ( Shift, Alt, Control ) + a letter"))
         .with_child(hotkey_list)
         .with_child(HotKeyRecord)
 }
