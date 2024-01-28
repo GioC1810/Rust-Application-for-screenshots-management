@@ -110,10 +110,10 @@ fn main() {
     let launcher= AppLauncher::with_window(main_window).delegate(delegate);
     let event_sink= launcher.get_external_handle();
 
-    let mut hotkey_manager =GlobalHotKeyManager::new().unwrap();
-    let hotkey = HotKeyGlobal::new(Some(Modifiers::SHIFT), Code::KeyD);
+    let hotkey_manager =GlobalHotKeyManager::new().unwrap();
+    //let hotkey = HotKeyGlobal::new(Some(Modifiers::SHIFT), Code::KeyD);
     //let hotkey2 = HotKeyGlobal::new(Some(Modifiers::SHIFT), Code::KeyB);
-    hotkey_manager.register(hotkey).expect("error in registering the hotkey");
+    //hotkey_manager.register(hotkey).expect("error in registering the hotkey");
     //hotkey_manager.register(hotkey2).expect("error in registering the hotkey");
 
 

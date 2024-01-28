@@ -18,6 +18,9 @@ use rusttype::{Font,Scale};
 use std::time::Duration;
 use druid::commands::CLOSE_WINDOW;
 use druid::Target::Window;
+mod HashMapHotKey;
+use HashMapHotKey::HKdict;
+use crate::HashMapHotKey::HKdictModifiers;
 
 pub struct SaveImageCommand {
     pub img_format: i32,
@@ -68,7 +71,7 @@ impl Widget<AppState> for MyApp {
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
         ctx.window().bring_to_front_and_focus();
-        //println!("cIAo");
+        println!("cIAo");
         match event {
 
             Event::MouseMove(mouse_event) => {
@@ -951,15 +954,22 @@ impl ExpandableRect {
         let width = (new_point.x - init_point.x).abs();
         let height = (new_point.y - init_point.y).abs();
         let size = Size::new(width, height);
-
-        if new_point.x <init_point.x{
+        //println!("update");
+        if new_point.x < init_point.x &&  new_point.y < init_point.y{
             self.rect = Rect::from_origin_size(new_point, size);
+        }
+        else if new_point.x < init_point.x && new_point.y > init_point.y{
+            self.rect = Rect::from_origin_size((new_point.x,init_point.y), size);
+        }
+        else if new_point.x > init_point.x && new_point.y < init_point.y{
+            self.rect = Rect::from_origin_size((init_point.x,new_point.y), size);
         }
         else{
             self.rect = Rect::from_origin_size(init_point, size);
         }
     }
 }
+
 
 impl Data for ExpandableRect {
     fn same(&self, other: &Self) -> bool {
@@ -1045,14 +1055,27 @@ pub struct HotKeyRecord;
 impl Widget<AppState> for HotKeyRecord {
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
+        println!("HOTKEY");
         ctx.set_focus(ctx.widget_id());
+        let hkdict =  HKdict::new();
+        let hkdict_modifiers = HKdictModifiers::new();
         match event {
             Event::KeyDown(key_event) => {
 
-                if data.hotkey_to_register.keys.len() < 4 && key_event.key != KbKey::Escape
+                if data.hotkey_to_register.keys.len() < 2 && key_event.key != KbKey::Escape
                     && (data.hotkey_to_register.keys.len() == 0 || key_event.key.ne(data.hotkey_to_register.keys.get(data.hotkey_to_register.keys.len()-1).unwrap())) {
-                    data.hotkey_to_register.keys.push(key_event.key.clone());
+                    if data.hotkey_to_register.keys.len() == 0 && hkdict_modifiers.my_map.contains_key(&key_event.key.to_string()){
+                        data.hotkey_to_register.keys.push(key_event.key.clone());
+                    }
+                    else if data.hotkey_to_register.keys.len() > 0 && hkdict.my_map.contains_key(&key_event.key.to_string().to_lowercase()) {
+                        data.hotkey_to_register.keys.push(key_event.key.clone());
+                    }
+                    else {
+                        println!("Invalid Hotkeys");
+                    }
                 }
+                println!("{}", key_event.key);
+
             }
             Event::KeyUp(key_event) => {
                 if key_event.key == KbKey::Escape {
@@ -1061,9 +1084,15 @@ impl Widget<AppState> for HotKeyRecord {
                 }
                 else{
 
-                    data.hotkeys.push(data.hotkey_to_register.clone());
-                    let hotkey = HotKeyGlobal::new(Some(Modifiers::SHIFT), Code::KeyF);
-                    data.hotkey_manager.register(hotkey).expect("error in registering hotkey");
+                    if data.hotkey_to_register.keys.len() == 2 {
+                        data.hotkeys.push(data.hotkey_to_register.clone());
+                        let modifier = *hkdict_modifiers.my_map.get(&data.hotkey_to_register.keys[0].to_string()).unwrap();
+                        let key = *hkdict.my_map.get(&data.hotkey_to_register.keys[1].to_string().to_lowercase()).unwrap();
+
+                        let hotkey = HotKeyGlobal::new(Some(modifier), key);
+                        data.hotkey_manager.register(hotkey).expect("error in registering hotkey");
+                    }
+
                     data.hotkey_to_register.keys.clear();
                     initial_window(ctx);
                 }
