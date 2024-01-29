@@ -12,6 +12,7 @@ use global_hotkey::GlobalHotKeyManager;
 use crate::graphical_elements::*;
 use crate::hotkey_screen::*;
 use crate::ui_functions::*;
+
 pub struct MyApp;
 #[derive(Clone, Data, Lens)]
 pub struct AppState{
@@ -58,7 +59,6 @@ impl Widget<AppState> for MyApp {
         match event {
 
             Event::MouseMove(mouse_event) => {
-
                 data.mouse_position = mouse_event.pos;
                 ctx.request_paint(); // Request a redraw
                 ctx.set_focus(ctx.widget_id());
@@ -70,8 +70,6 @@ impl Widget<AppState> for MyApp {
                 }
             }
             Event::MouseDown(mouse_event) => {
-                println!("in screenshots {:?}",ctx.window_id());
-
                 if mouse_event.button == MouseButton::Left {
                     /*
                      implemented for multimonitors. When the mouse is raised outside one monitor the final point is not saved.
@@ -431,12 +429,12 @@ impl Widget<AppState> for Croptest {
             if data.is_inserting_text{
                 ctx.new_window(WindowDesc::new(build_input_box(data))
                     .set_position(Point::new(0 as f64, 0 as f64))
-
                 );
                 ctx.window().close();
+
             }
             if data.is_highliting{
-
+                println!("highlithing");
                 let rgba_data = data.image.as_ref().unwrap().raw_pixels();
 
                 let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
@@ -475,7 +473,7 @@ impl Widget<AppState> for Croptest {
 
                 editing_window(ctx,drawn_image,data);
             }
-            ctx.submit_command(druid::commands::CLOSE_WINDOW);
+            //ctx.submit_command(druid::commands::CLOSE_WINDOW);
         }
     }
 

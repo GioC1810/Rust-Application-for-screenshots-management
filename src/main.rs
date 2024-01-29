@@ -82,12 +82,7 @@ impl AppDelegate<AppState> for Delegate {
         self.last_window_id=Some(id);
 
     }
-    fn window_removed(&mut self, _id: WindowId, data: &mut AppState, _env: &Env, _ctx: &mut DelegateCtx) {
 
-        data.initial_point=None;
-        data.final_point=None;
-        data.current_rectangle=None;
-    }
 }
 
 fn main() {
@@ -96,7 +91,7 @@ fn main() {
         is_macos = true;
     }
     let main_window = WindowDesc::new(ui_builder())
-        .window_size((550.0,200.0))
+        .window_size((700.0,200.0))
         .title("Screenshot App")
         .show_titlebar(true);
 
@@ -108,7 +103,6 @@ fn main() {
     let hotkey_manager =GlobalHotKeyManager::new().unwrap();
 
     let id=window_id.clone();
-    println!("{:?}", *id);
     thread::spawn(move || {
         loop {
             if let Ok(event) = GlobalHotKeyEvent::receiver().try_recv() {

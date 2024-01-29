@@ -91,7 +91,7 @@ impl ExpandableRect {
         let width = (new_point.x - init_point.x).abs();
         let height = (new_point.y - init_point.y).abs();
         let size = Size::new(width, height);
-        //println!("update");
+        
         if new_point.x < init_point.x &&  new_point.y < init_point.y{
             self.rect = Rect::from_origin_size(new_point, size);
         }

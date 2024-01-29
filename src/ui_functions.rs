@@ -1,4 +1,3 @@
-
 use std::cell::RefCell;
 use std::{rc::Rc,fs};
 use druid::widget::{Axis, Button, Flex, Image, KnobStyle, Label,  Painter,SizedBox, Slider, TextBox, ViewSwitcher, ZStack};
@@ -18,14 +17,14 @@ use crate::graphical_elements::*;
 pub fn initial_window(ctx:&mut EventCtx){
     //let screens=Screen::all().unwrap();
     ctx.new_window(WindowDesc::new(ui_builder())
-        .window_size((550.0,200.0))
+        .window_size((700.0,200.0))
         .show_titlebar(true)
+        .title("Screenshot App")
     );
     ctx.window().close();
 }
 pub fn screen_window(ctx:&mut EventCtx, data: &mut AppState){
 
-    //let screens=Screen::all().unwrap();
     data.initial_point=None;
     data.final_point=None;
 
@@ -39,7 +38,7 @@ pub fn screen_window(ctx:&mut EventCtx, data: &mut AppState){
     ctx.window().close();
 }
 pub fn editing_window(ctx:&mut EventCtx,img: screenshots::Image, my_data:&mut AppState) {
-    ctx.new_window(WindowDesc::new(build_ui(img,  my_data))
+    ctx.new_window(WindowDesc::new(build_ui(img,  my_data)).title("Editing Window")
         .set_window_state(Maximized));
     ctx.window().close();
 
@@ -55,8 +54,6 @@ pub fn ui_builder() -> impl Widget<AppState> {
         data.final_point = None;
         data.image_height=0;
         data.image_width=0;
-
-
         screen_window(ctx, data);
     }
 
@@ -64,20 +61,14 @@ pub fn ui_builder() -> impl Widget<AppState> {
     let mut monitors_buttons = Flex::column();
     let mut counter = 0;
     for screen in screens{
-        monitors_buttons = monitors_buttons.with_child(Button::new("Monitor ".to_owned() + &counter.to_string())
+        monitors_buttons = monitors_buttons.with_child(Button::new("Take Screen on Monitor ".to_owned() + &counter.to_string())
             .on_click(move |ctx, data: &mut AppState, _env| {
                 data.screen = screen;
-                take_screenshot(ctx,data);
 
+                take_screenshot(ctx,data);
             }));
         counter += 1;
     }
-
-    /*let screen_button = Button::new("Screen")
-        .on_click(|ctx, data: &mut AppState, _env| {
-            take_screenshot(ctx,data);
-
-        });*/
 
     let memorize_hotkey = Button::new("Add hotkey")
         .on_click(|ctx, data, _env| {
@@ -94,9 +85,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
 
     #[tokio::main]
     pub async fn timer_handling(_ctx: &mut EventCtx,_monitor_index: usize, time: u64) {
-
         // Sleep for time seconds
-
         tokio::time::sleep(tokio::time::Duration::from_secs(time)).await;
     }
 
@@ -312,64 +301,6 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
         .with_child(KeyDetectionApp)
 
 }
-
-pub fn build_input_box(_my_data:&mut AppState) -> impl Widget<AppState> {
-    let input_label = Label::new("Enter text:");
-
-    let text_box = TextBox::new()
-        .lens(AppState::input_text)
-        .expand_width()
-        .fix_height(30.0);
-
-    let submit_button = Button::new("Submit")
-        .on_click(|ctx, data: &mut AppState, _env| {
-
-            // You can perform further actions with the input text, e.g., send it to a server, process it, etc.
-            // For now, we'll just print it to the console.
-
-            //let rgba_data = data.image.as_ref().unwrap().raw_pixels().to_vec();
-            //let image=screenshots::Image::new(data.image_width as u32,data.image_height as u32,rgba_data);
-
-
-            let rgba_data = data.image.as_ref().unwrap().raw_pixels();
-            let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
-
-            let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
-                data.image.as_ref().unwrap().width() as u32,
-                data.image.as_ref().unwrap().height() as u32,
-                rgba_data.to_vec(),
-            ).expect("Failed to create ImageBuffer"));
-            //let mut new_image=None;
-            let font_data: &[u8] = include_bytes!("../Montserrat-Italic.otf");
-            let font = Font::try_from_bytes(font_data);
-            let new_image= Some(draw_text(&dynamic_image, rgba, data.initial_point.unwrap().x as i32, data.initial_point.unwrap().y as i32, Scale::uniform((data.final_point.unwrap().y-data.initial_point.unwrap().y) as f32),
-                                          &font.unwrap(), &*data.input_text));
-
-            let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
-            let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
-            data.image=drawn_image_buf.clone();
-            let image=screenshots::Image::new(dynamic_image.width() as u32,dynamic_image.height() as u32,rgba_data_drawn);
-            data.is_inserting_text=false;
-            data.initial_point = None;
-            data.final_point = None;
-
-
-            /*ctx.new_window(WindowDesc::new(build_ui( image,  data)).set_window_state(Maximized));
-            ctx.window().close();*/
-            editing_window(ctx,image,  data);
-            // Clear the text input field after submission
-            data.input_text.clear();
-            ctx.request_update(); // Request a UI update to clear the text box
-        });
-
-    Flex::column()
-        .with_child(input_label)
-        .with_spacer(10.0)
-        .with_child(text_box)
-        .with_spacer(10.0)
-        .with_child(submit_button)
-}
-
 pub fn build_ui_save_file(img: Vec<u8>, _data: &mut AppState, img_format: i32) -> impl Widget<AppState>{
 
     let button_save = Button::new("Save image")
@@ -412,5 +343,53 @@ pub fn build_ui_save_file(img: Vec<u8>, _data: &mut AppState, img_format: i32) -
         .with_spacer(20.0)
         .with_child(button_save)
 
+}
+
+
+pub fn build_input_box(_data:&mut AppState) -> impl Widget<AppState> {
+    let input_label = Label::new("Enter text:");
+
+    let text_box = TextBox::new()
+        .lens(AppState::input_text)
+        .expand_width()
+        .fix_height(30.0);
+
+    let submit_button = Button::new("Submit")
+        .on_click(|ctx, data: &mut AppState, _env| {
+
+            let rgba_data = data.image.as_ref().unwrap().raw_pixels();
+            let rgba=Rgba([data.selected_color.as_rgba8().0,data.selected_color.as_rgba8().1,data.selected_color.as_rgba8().2,data.selected_color.as_rgba8().3]);
+
+            let dynamic_image = DynamicImage::ImageRgba8(ImageBuffer::from_raw(
+                data.image.as_ref().unwrap().width() as u32,
+                data.image.as_ref().unwrap().height() as u32,
+                rgba_data.to_vec(),
+            ).expect("Failed to create ImageBuffer"));
+
+            let font_data: &[u8] = include_bytes!("../Montserrat-Italic.otf");
+            let font = Font::try_from_bytes(font_data);
+            let new_image= Some(draw_text(&dynamic_image, rgba, data.initial_point.unwrap().x as i32, data.initial_point.unwrap().y as i32, Scale::uniform((data.final_point.unwrap().y-data.initial_point.unwrap().y) as f32),
+                                          &font.unwrap(), &*data.input_text));
+
+            let rgba_data_drawn = new_image.clone().unwrap().into_raw().to_vec();
+            let drawn_image_buf=Some(ImageBuf::from_raw(rgba_data_drawn.clone(),FormatImage::RgbaPremul,new_image.clone().unwrap().width() as usize,new_image.unwrap().height() as usize));
+            data.image=drawn_image_buf.clone();
+            let image=screenshots::Image::new(dynamic_image.width() as u32,dynamic_image.height() as u32,rgba_data_drawn);
+            data.is_inserting_text=false;
+            data.initial_point = None;
+            data.final_point = None;
+
+            editing_window(ctx,image,  data);
+            // Clear the text input field after submission
+            data.input_text.clear();
+            ctx.request_update(); // Request a UI update to clear the text box
+        });
+
+    Flex::column()
+        .with_child(input_label)
+        .with_spacer(10.0)
+        .with_child(text_box)
+        .with_spacer(10.0)
+        .with_child(submit_button)
 }
 

@@ -89,7 +89,7 @@ pub struct HotKeyRecord;
 impl Widget<AppState> for HotKeyRecord {
 
     fn event(&mut self, ctx: &mut EventCtx, event: &Event, data: &mut AppState, _env: &Env) {
-        println!("HOTKEY");
+
         ctx.set_focus(ctx.widget_id());
         let hkdict =  HKdict::new();
         let hkdict_modifiers = HKdictModifiers::new();
@@ -108,7 +108,6 @@ impl Widget<AppState> for HotKeyRecord {
                         println!("Invalid Hotkeys");
                     }
                 }
-                println!("{}", key_event.key);
 
             }
             Event::KeyUp(key_event) => {
@@ -222,7 +221,7 @@ pub fn build_hotkey_ui(data: &mut AppState) -> impl Widget<AppState> {
                 // Handle the click event to delete the corresponding item
                 d.hotkeys.remove(index);
                 ctx.new_window(WindowDesc::new(build_hotkey_ui(d))
-                    .title("digit hotkey")
+                    .title("Digit hotkey")
                     .window_size((500.0,200.0))
                     .set_always_on_top(true)
                     .show_titlebar(true)
