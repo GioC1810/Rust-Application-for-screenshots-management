@@ -123,6 +123,7 @@ impl Widget<AppState> for MyApp {
             data.final_point = Some(Point::new(data.final_point.unwrap().x * (ctx.scale().x())/divisor_factor , data.final_point.unwrap().y * (ctx.scale().y())/divisor_factor));
 
 
+
             let screenshot_width=data.final_point.unwrap().x-data.initial_point.unwrap().x ;
             let screenshot_height=data.final_point.unwrap().y-data.initial_point.unwrap().y ;
 

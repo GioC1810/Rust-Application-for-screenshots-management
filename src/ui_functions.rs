@@ -30,7 +30,7 @@ pub fn screen_window(ctx:&mut EventCtx, data: &mut AppState){
 
     ctx.new_window(WindowDesc::new(MyApp)
         .set_window_state(Maximized)
-        .set_position(Point::new(data.screen.display_info.x as f64, data.screen.display_info.y as f64))
+        //.set_position(Point::new(data.screen.display_info.x as f64, data.screen.display_info.y as f64))
         .show_titlebar(data.is_macos)
         .transparent(true)
 
@@ -70,7 +70,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
         counter += 1;
     }
 
-    let memorize_hotkey = Button::new("Add hotkey")
+    let memorize_hotkey = Button::new("Manage hotkey")
         .on_click(|ctx, data, _env| {
 
             ctx.new_window(WindowDesc::new(build_hotkey_ui(data))
@@ -188,7 +188,7 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
 
             let img_data = Rc::clone(&save_as_png_data);
             let img_cloned = img_data.borrow().to_owned();
-            ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
+            ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 0,  img: img_cloned}));
         });
 
     let save_as_jpg = Button::new("Save as jpg")
@@ -203,7 +203,7 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
 
             let img_data = Rc::clone(&save_as_gif_data);
             let img_cloned = img_data.borrow().to_owned();
-            ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 1,  img: img_cloned}));
+            ctx.submit_command(SAVE_IMAGE_COMMAND.with(SaveImageCommand{img_format: 2,  img: img_cloned}));
         });
 
     let copy_to_clipboard = Button::new("Copy to clipboard")
@@ -229,7 +229,10 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
         data.final_point=None;
         data.current_rectangle= None;
         data.rectangles= Vec::new();
-        data.draw_rect_mode= !data.draw_rect_mode;
+        if !data.draw_arrow_mode && !data.draw_circle_mode && !data.draw_lines_mode && !data.is_inserting_text && !data.is_highliting{
+            data.draw_rect_mode= !data.draw_rect_mode;
+        }
+
     });
     let draw_circle= Button::new("⚪").on_click(move |_ctx, data: &mut AppState, _: &Env| {
         data.mouse_position=Point::new(0.0, 0.0);
@@ -237,7 +240,9 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
         data.final_point=None;
         data.current_rectangle= None;
         data.rectangles= Vec::new();
-        data.draw_circle_mode= !data.draw_circle_mode;
+        if !data.draw_arrow_mode && !data.draw_rect_mode && !data.draw_lines_mode && !data.is_inserting_text && !data.is_highliting {
+            data.draw_circle_mode = !data.draw_circle_mode
+        }
     });
     let draw_arrow= Button::new("↘").on_click(move |_ctx, data: &mut AppState, _: &Env| {
         data.mouse_position=Point::new(0.0, 0.0);
@@ -245,7 +250,9 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
         data.final_point=None;
         data.current_rectangle= None;
         data.rectangles= Vec::new();
-        data.draw_arrow_mode= !data.draw_arrow_mode;
+        if !data.draw_rect_mode && !data.draw_circle_mode && !data.draw_lines_mode && !data.is_inserting_text && !data.is_highliting {
+            data.draw_arrow_mode = !data.draw_arrow_mode;
+        }
     });
     let draw_lines= Button::new("✏").on_click(move |_ctx, data: &mut AppState, _: &Env| {
         data.mouse_position=Point::new(0.0, 0.0);
@@ -253,7 +260,9 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
         data.final_point=None;
         data.current_rectangle= None;
         data.rectangles= Vec::new();
-        data.draw_lines_mode= !data.draw_lines_mode;
+        if !data.draw_arrow_mode && !data.draw_circle_mode && !data.draw_rect_mode && !data.is_inserting_text && !data.is_highliting {
+            data.draw_lines_mode = !data.draw_lines_mode;
+        }
     });
 
     let highlight= Button::new("🖍").on_click(move |_ctx, data: &mut AppState, _: &Env| {
@@ -262,7 +271,9 @@ pub fn build_ui(img: screenshots::Image, my_data:&mut AppState) -> impl Widget<A
         data.final_point=None;
         data.current_rectangle= None;
         data.rectangles= Vec::new();
-        data.is_highliting= true;
+        if !data.draw_arrow_mode && !data.draw_circle_mode && !data.draw_lines_mode && !data.is_inserting_text && !data.draw_rect_mode {
+            data.is_highliting = true;
+        }
     });
 
     let change_color= Button::new("Change Color").on_click(move |ctx, _data: &mut AppState, _: &Env| {
